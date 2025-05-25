@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cuaderno de Novedades del Laboratorio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Estilo para ocultar vistas que no están activas */
+        .hidden-view {
+            display: none;
+        }
+        /* Estilos adicionales si son necesarios */
+        body {
+            font-family: 'Inter', sans-serif; /* Fuente agradable */
+        }
+        /* Estilo para selectores múltiples (si se usa) */
+        .multi-select-container {
+            height: 120px; /* Ajustar según sea necesario */
+            overflow-y: auto;
+            border: 1px solid #e2e8f0; /* slate-300 */
+            border-radius: 0.375rem; /* rounded-lg */
+            padding: 0.5rem; /* p-2 */
+        }
+        .multi-select-container label {
+            display: block;
+            margin-bottom: 0.25rem; /* mb-1 */
+            cursor: pointer;
+        }
+         .multi-select-container label:hover {
+            background-color: #f1f5f9; /* slate-100 */
+        }
+        .novedad-card { /* Para borde izquierdo coloreado */
+            border-left-width: 4px;
+        }
+        /* Clases para borde de tarjeta y badges de calificación */
+        .calificacion-Con-tareas-pendientes { border-left-color: #ef4444; /* red-500 */ }
+        .calificacion-Todo-realizado { border-left-color: #22c55e; /* green-500 */ }
+        /* Fallback para calificaciones antiguas si aún existen en datos viejos, aunque la lógica las ignorará */
+        .calificacion-Malo { border-left-color: #ef4444; }
+        .calificacion-Regular { border-left-color: #f59e0b; }
+        .calificacion-Bueno { border-left-color: #22c55e; }
+        .calificacion-Muy-Bueno { border-left-color: #3b82f6; }
+
+
+        /* Estilos para la celda de calificación del supervisor */
+        .calificacion-cell {
+            width: 2rem; 
+            height: 2rem; 
+            display: inline-block;
+            border-radius: 0.25rem; 
+            margin: auto; 
+        }
+        .calificacion-cell-sm {
+            width: 1.5rem;
+            height: 1.5rem;
+            font-size: 0.75rem;
+            line-height: 1.5rem;
+            text-align: center;
+            font-weight: bold;
+        }
+
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+
+    <div id="appContainer" class="container mx-auto p-4 min-h-screen">
+
+        <nav id="mainNav" class="bg-sky-600 text-white p-4 rounded-lg shadow-md mb-6 hidden-view">
+            <div class="flex justify-between items-center">
+                <h1 class="text-2xl font-bold">Cuaderno de Novedades</h1>
+                <div>
+                    <span id="currentUserDisplay" class="mr-4"></span>
+                    <button id="logoutButton" class="bg-red-500 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-150">
+                        Cerrar Sesión
+                    </button>
+                </div>
+            </div>
+            <div id="roleSpecificNav" class="mt-2"></div>
+        </nav>
+
+        <section id="loginView" class="max-w-md mx-auto bg-white p-8 rounded-xl shadow-2xl mt-10">
+            <h2 class="text-3xl font-bold text-center text-sky-600 mb-8">Iniciar Sesión</h2>
+            <form id="loginForm">
+                <div class="mb-6">
+                    <label for="username" class="block text-slate-700 text-sm font-semibold mb-2">Usuario:</label>
+                    <input type="text" id="username" name="username" required
+                           class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500 transition duration-150"
+                           placeholder="Ej: admin">
+                </div>
+                <div class="mb-8">
+                    <label for="password" class="block text-slate-700 text-sm font-semibold mb-2">Contraseña:</label>
+                    <input type="password" id="password" name="password" required
+                           class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500 transition duration-150"
+                           placeholder="••••••••">
+                </div>
+                <button type="submit"
+                        class="w-full bg-sky-500 hover:bg-sky-700 text-white font-bold py-3 px-6 rounded-lg transition duration-150 text-lg">
+                    Ingresar
+                </button>
+                <p id="loginError" class="text-red-500 text-sm mt-4 text-center"></p>
+            </form>
+        </section>
+
+        <section id="adminDashboardView" class="hidden-view bg-white p-6 rounded-lg shadow-lg">
+            <h2 class="text-2xl font-semibold mb-6 border-b pb-3">Panel de Administrador</h2>
+            <p id="adminWelcomeMessage" class="mb-4"></p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <button id="btnGoToGestionUsuarios" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-5 rounded-lg transition duration-150 text-lg">
+                    Gestionar Usuarios
+                </button>
+                <button id="btnGoToGestionCuadernos" class="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-5 rounded-lg transition duration-150 text-lg">
+                    Gestionar Cuadernos
+                </button>
+            </div>
+        </section>
+
+        <section id="adminGestionUsuariosView" class="hidden-view bg-white p-6 rounded-lg shadow-lg">
+            <div class="flex justify-between items-center mb-6 border-b pb-3">
+                <h2 class="text-2xl font-semibold">Gestión de Usuarios</h2>
+                <button id="btnNuevoUsuario" class="bg-sky-500 hover:bg-sky-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-150">
+                    + Nuevo Usuario
+                </button>
+            </div>
+            <div id="formNuevoUsuarioContainer" class="hidden-view mb-6 p-6 bg-slate-50 rounded-lg shadow">
+                <h3 id="formUsuarioTitle" class="text-xl font-semibold text-sky-700 mb-4">Agregar Nuevo Usuario</h3>
+                <form id="formUsuario">
+                    <input type="hidden" id="usuarioIdToEdit">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="usuarioUsername" class="block text-sm font-medium text-slate-700 mb-1">Nombre de Usuario (login):</label>
+                            <input type="text" id="usuarioUsername" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500">
+                        </div>
+                        <div>
+                            <label for="usuarioNombreCompleto" class="block text-sm font-medium text-slate-700 mb-1">Nombre Completo:</label>
+                            <input type="text" id="usuarioNombreCompleto" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500">
+                        </div>
+                        <div>
+                            <label for="usuarioPassword" class="block text-sm font-medium text-slate-700 mb-1">Contraseña:</label>
+                            <input type="password" id="usuarioPassword" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500">
+                        </div>
+                        <div>
+                            <label for="usuarioRol" class="block text-sm font-medium text-slate-700 mb-1">Rol:</label>
+                            <select id="usuarioRol" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500">
+                                <option value="operario">Operario</option>
+                                <option value="supervisor">Supervisor</option>
+                                <option value="admin">Administrador</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-6 flex justify-end space-x-3">
+                        <button type="button" id="cancelarFormUsuario" class="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-100 transition">Cancelar</button>
+                        <button type="submit" id="guardarFormUsuario" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-lg transition">Guardar Usuario</button>
+                    </div>
+                    <p id="usuarioFormError" class="text-red-500 text-sm mt-3"></p>
+                </form>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full bg-white border border-slate-200 rounded-lg">
+                    <thead class="bg-slate-200">
+                        <tr>
+                            <th class="py-3 px-4 border-b text-left text-sm font-semibold text-slate-700">ID</th>
+                            <th class="py-3 px-4 border-b text-left text-sm font-semibold text-slate-700">Usuario</th>
+                            <th class="py-3 px-4 border-b text-left text-sm font-semibold text-slate-700">Nombre Completo</th>
+                            <th class="py-3 px-4 border-b text-left text-sm font-semibold text-slate-700">Rol</th>
+                            <th class="py-3 px-4 border-b text-left text-sm font-semibold text-slate-700">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaUsuariosBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="adminGestionCuadernosView" class="hidden-view bg-white p-6 rounded-lg shadow-lg">
+            <div class="flex justify-between items-center mb-6 border-b pb-3">
+                <h2 class="text-2xl font-semibold">Gestión de Cuadernos</h2>
+                <button id="btnNuevoCuaderno" class="bg-sky-500 hover:bg-sky-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-150">
+                    + Nuevo Cuaderno
+                </button>
+            </div>
+            <div id="formNuevoCuadernoContainer" class="hidden-view mb-6 p-6 bg-slate-50 rounded-lg shadow">
+                <h3 id="formCuadernoTitle" class="text-xl font-semibold text-sky-700 mb-6">Agregar Nuevo Cuaderno</h3>
+                <form id="formCuaderno">
+                    <input type="hidden" id="cuadernoIdToEdit">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                        <div>
+                            <label for="cuadernoId" class="block text-sm font-medium text-slate-700 mb-1">ID del Cuaderno (Ej: LAB-HEMA):</label>
+                            <input type="text" id="cuadernoId" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500" placeholder="ID único">
+                        </div>
+                        <div>
+                            <label for="cuadernoNombre" class="block text-sm font-medium text-slate-700 mb-1">Nombre del Cuaderno:</label>
+                            <input type="text" id="cuadernoNombre" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500" placeholder="Nombre descriptivo">
+                        </div>
+                        <div>
+                            <label for="cuadernoTipo" class="block text-sm font-medium text-slate-700 mb-1">Tipo de Cuaderno:</label>
+                            <select id="cuadernoTipo" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500">
+                                <option value="novedades">Novedades (Texto Libre)</option>
+                                <option value="checklist">Checklist (Lista de Tareas)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="cuadernoColor" class="block text-sm font-medium text-slate-700 mb-1">Color del Cuaderno (para Operario):</label>
+                            <select id="cuadernoColor" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500">
+                                <option value="bg-slate-200 text-slate-800 hover:bg-slate-300">Gris Claro (Default)</option>
+                                <option value="bg-red-400 text-white">Rojo</option>
+                                <option value="bg-yellow-400 text-slate-800">Amarillo</option>
+                                <option value="bg-green-400 text-white">Verde</option>
+                                <option value="bg-blue-400 text-white">Azul</option>
+                                <option value="bg-indigo-400 text-white">Índigo</option>
+                                <option value="bg-purple-400 text-white">Púrpura</option>
+                                <option value="bg-pink-400 text-white">Rosa</option>
+                                <option value="bg-teal-400 text-white">Turquesa</option>
+                                <option value="bg-orange-400 text-white">Naranja</option>
+                            </select>
+                        </div>
+                        
+                        <div id="cuadernoTareasChecklistContainer" class="md:col-span-2 hidden-view">
+                            <label for="cuadernoTareasDefinicion" class="block text-sm font-medium text-slate-700 mb-1">Tareas del Checklist (una por línea, familia con ##):</label>
+                            <textarea id="cuadernoTareasDefinicion" rows="5" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500" placeholder="Ej: ## FAMILIA 1&#10;Tarea 1.1&#10;Tarea 1.2&#10;## FAMILIA 2&#10;Tarea 2.1"></textarea>
+                        </div>
+
+                        <div id="emailConfigUnificado" class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                             <div class="md:col-span-2 mt-4">
+                                <p class="text-sm font-medium text-slate-700 mb-2">Listas de Correo (separar emails con comas):</p>
+                            </div>
+                            <div>
+                                <label for="cuadernoEmailsTodoRealizado" class="block text-xs font-medium text-slate-600 mb-1">Emails para "Todo Realizado":</label>
+                                <input type="text" id="cuadernoEmailsTodoRealizado" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-sky-500 focus:border-sky-500" placeholder="ej: supervisor.ok@mail.com">
+                            </div>
+                            <div>
+                                <label for="cuadernoEmailsConPendientes" class="block text-xs font-medium text-slate-600 mb-1">Emails para "Con Tareas Pendientes":</label>
+                                <input type="text" id="cuadernoEmailsConPendientes" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-sky-500 focus:border-sky-500" placeholder="ej: alerta.general@mail.com">
+                            </div>
+                        </div>
+                        
+                        <div class="md:col-span-2 mt-4">
+                             <label class="block text-sm font-medium text-slate-700 mb-1">Usuarios Operarios Asignados:</label>
+                             <div id="cuadernoUsuariosAsignadosContainer" class="multi-select-container bg-white"></div>
+                             <p class="text-xs text-slate-500 mt-1">Seleccione los operarios que tendrán acceso a este cuaderno.</p>
+                        </div>
+                    </div>
+                    <div class="mt-8 flex justify-end space-x-3">
+                        <button type="button" id="cancelarFormCuaderno" class="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-100 transition">Cancelar</button>
+                        <button type="submit" id="guardarFormCuaderno" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-lg transition">Guardar Cuaderno</button>
+                    </div>
+                    <p id="cuadernoFormError" class="text-red-500 text-sm mt-3"></p>
+                </form>
+            </div>
+             <div class="overflow-x-auto">
+                <table class="min-w-full bg-white border border-slate-200 rounded-lg">
+                    <thead class="bg-slate-200">
+                        <tr>
+                            <th class="py-3 px-4 border-b text-left text-sm font-semibold text-slate-700">ID</th>
+                            <th class="py-3 px-4 border-b text-left text-sm font-semibold text-slate-700">Nombre</th>
+                            <th class="py-3 px-4 border-b text-left text-sm font-semibold text-slate-700">Tipo</th>
+                            <th class="py-3 px-4 border-b text-left text-sm font-semibold text-slate-700">Color</th>
+                            <th class="py-3 px-4 border-b text-left text-sm font-semibold text-slate-700">Usuarios Asignados</th>
+                            <th class="py-3 px-4 border-b text-left text-sm font-semibold text-slate-700">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaCuadernosBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="operarioDashboardView" class="hidden-view bg-white p-6 rounded-lg shadow-lg">
+            <h2 class="text-2xl font-semibold mb-6 border-b pb-3">Mis Cuadernos de Novedades</h2>
+            <p id="operarioWelcomeMessage" class="mb-4"></p>
+            <div id="operarioCuadernosContainer" class="space-y-4"></div>
+        </section>
+
+        <section id="operarioCuadernoDetalleView" class="hidden-view bg-white p-6 rounded-lg shadow-lg">
+            <div class="flex justify-between items-center mb-4 border-b pb-3">
+                <h2 id="detalleCuadernoNombre" class="text-2xl font-semibold text-sky-700">Novedades de: [Nombre del Cuaderno]</h2>
+                <button id="btnVolverADashboardUsuario" class="text-sm bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 px-3 rounded-lg transition">
+                    &larr; Volver
+                </button>
+            </div>
+            
+            <div id="detalleCuadernoContent">
+                <div id="detalleContenidoNovedades">
+                    <button id="btnAbrirFormNovedadDesdeDetalle" class="mb-6 bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-150">
+                        + Registrar Nueva Novedad en este Cuaderno
+                    </button>
+                    <h3 class="text-xl font-medium text-slate-800 mb-3">Historial de Novedades:</h3>
+                    <div id="listaNovedadesCuadernoOperario" class="space-y-4">
+                         <p class="text-slate-500">Cargando novedades...</p>
+                    </div>
+                </div>
+
+                <div id="detalleContenidoChecklist" class="hidden-view">
+                    <form id="formChecklist">
+                        <input type="hidden" id="checklistCuadernoId">
+                        <div class="mb-4">
+                            <label for="checklistTurno" class="block text-slate-700 text-sm font-semibold mb-1">Turno:</label>
+                            <select id="checklistTurno" required class="w-full md:w-1/3 px-3 py-2 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500">
+                                <option value="">Seleccione un turno...</option>
+                                <option value="Mañana">Mañana</option>
+                                <option value="Tarde">Tarde</option>
+                                <option value="Noche">Noche</option>
+                            </select>
+                        </div>
+                        <h3 class="text-xl font-medium text-slate-800 mb-3">Tareas a Realizar:</h3>
+                        <div id="listaTareasChecklist" class="space-y-3 mb-6"></div>
+                         <div class="mb-4">
+                            <label for="checklistObservaciones" class="block text-slate-700 text-sm font-semibold mb-1">Observaciones Adicionales (Globales):</label>
+                            <textarea id="checklistObservaciones" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500" placeholder="Añada cualquier observación relevante..."></textarea>
+                        </div>
+                        <div class="mb-6">
+                            <label for="checklistCalificacion" class="block text-slate-700 text-sm font-semibold mb-1">Calificación General del Turno:</label>
+                            <select id="checklistCalificacion" required class="w-full md:w-1/3 px-3 py-2 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500">
+                                <option value="">Seleccione una calificación...</option>
+                                <option value="Todo realizado">Todo realizado</option>
+                                <option value="Con tareas pendientes">Con tareas pendientes</option>
+                            </select>
+                        </div>
+                        <button type="submit" id="guardarChecklistBtn" class="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-150">
+                            Guardar Checklist del Turno
+                        </button>
+                        <p id="checklistFormError" class="text-red-500 text-sm mt-3"></p>
+                    </form>
+                    <h3 class="text-xl font-medium text-slate-800 mt-8 mb-3">Historial de Checklists Guardados:</h3>
+                    <div id="historialChecklistsCuaderno" class="space-y-4">
+                        <p class="text-slate-500">Cargando historial...</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <section id="supervisorGestionNovedadesView" class="hidden-view bg-white p-6 rounded-lg shadow-lg">
+            <h2 class="text-2xl font-semibold mb-6 border-b pb-3">Gestionar Novedades por Cuaderno (Supervisor)</h2>
+            <p id="supervisorGestionWelcomeMessage" class="mb-4"></p>
+            <div id="supervisorGestionCuadernosContainer" class="space-y-4"></div>
+        </section>
+
+        <section id="supervisorDashboardView" class="hidden-view bg-white p-6 rounded-lg shadow-lg">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-3">
+                <h2 class="text-2xl font-semibold mb-2 md:mb-0">Tablero General de Novedades</h2>
+                <div class="flex items-center space-x-3">
+                    <label for="supervisorDatePicker" class="text-sm font-medium text-slate-700">Fecha:</label>
+                    <input type="date" id="supervisorDatePicker" name="supervisorDatePicker" 
+                           class="px-3 py-2 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500 transition">
+                </div>
+            </div>
+            <div id="supervisorLeyendaCalificaciones" class="flex flex-wrap gap-x-4 gap-y-2 mb-6 text-xs items-center">
+                <span class="font-semibold mr-2">Leyenda:</span>
+                <span class="flex items-center"><span class="calificacion-cell-sm bg-green-500 text-white mr-1">TR</span> Todo Realizado</span>
+                <span class="flex items-center"><span class="calificacion-cell-sm bg-red-500 text-white mr-1">TP</span> Con Tareas Pend.</span>
+                <span class="flex items-center"><span class="calificacion-cell-sm bg-slate-300 text-slate-700 mr-1">S/C</span> Sin Calificar / Novedad</span>
+            </div>
+            <div id="supervisorGridNovedadesContainer" class="overflow-x-auto">
+                <table class="min-w-full bg-white border border-slate-200 rounded-lg">
+                    <thead class="bg-slate-100">
+                        <tr>
+                            <th class="py-2 px-3 border-b border-slate-300 text-left text-sm font-semibold text-slate-600">Cuaderno / Sección</th>
+                            <th class="py-2 px-3 border-b border-slate-300 text-center text-sm font-semibold text-slate-600">Turno Mañana</th>
+                            <th class="py-2 px-3 border-b border-slate-300 text-center text-sm font-semibold text-slate-600">Turno Tarde</th>
+                            <th class="py-2 px-3 border-b border-slate-300 text-center text-sm font-semibold text-slate-600">Turno Noche</th>
+                            <th class="py-2 px-3 border-b border-slate-300 text-center text-sm font-semibold text-slate-600">Detalles Día</th>
+                        </tr>
+                    </thead>
+                    <tbody id="supervisorGridNovedadesBody">
+                        <tr><td colspan="5" class="p-4 text-center text-slate-500">Seleccione una fecha para ver las novedades.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="supervisorTotales" class="mt-6 pt-4 border-t border-slate-200">
+                 <h3 class="text-md font-semibold text-slate-700 mb-2">Resumen del Día:</h3>
+                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
+                    <p>Cuadernos con Novedades: <span id="totalCuadernosConNovedades" class="font-bold">0</span></p>
+                    <p>Cuadernos SIN Novedades: <span id="totalCuadernosSinNovedades" class="font-bold">0</span></p>
+                    <p>Total Novedades Registradas: <span id="totalNovedadesRegistradas" class="font-bold">0</span></p>
+                 </div>
+            </div>
+        </section>
+
+        <div id="formNovedadModal" class="fixed inset-0 bg-slate-800 bg-opacity-75 flex items-center justify-center p-4 hidden-view z-50">
+            <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-lg transform transition-all">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 id="formNovedadTitle" class="text-2xl font-semibold text-sky-600">Registrar Nueva Novedad</h3>
+                    <button id="closeFormNovedadModal" class="text-slate-500 hover:text-slate-700 text-2xl">&times;</button>
+                </div>
+                <form id="formNovedad">
+                    <input type="hidden" id="novedadCuadernoId">
+                    <input type="hidden" id="novedadIdToEdit"> 
+                    <div class="mb-4">
+                        <label for="novedadCuadernoNombre" class="block text-slate-700 text-sm font-semibold mb-1">Cuaderno:</label>
+                        <input type="text" id="novedadCuadernoNombre" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-50" readonly>
+                    </div>
+                    <div class="mb-4">
+                        <label for="novedadTurno" class="block text-slate-700 text-sm font-semibold mb-1">Turno:</label>
+                        <select id="novedadTurno" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500">
+                            <option value="">Seleccione un turno...</option>
+                            <option value="Mañana">Mañana</option>
+                            <option value="Tarde">Tarde</option>
+                            <option value="Noche">Noche</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label for="novedadTexto" class="block text-slate-700 text-sm font-semibold mb-1">Novedad:</label>
+                        <textarea id="novedadTexto" rows="4" required
+                                  class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500"
+                                  placeholder="Describa las novedades del turno..."></textarea>
+                    </div>
+                    <div class="mb-6">
+                        <label for="novedadCalificacion" class="block text-slate-700 text-sm font-semibold mb-1">Calificación del Turno:</label>
+                        <select id="novedadCalificacion" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500">
+                            <option value="">Seleccione una calificación...</option>
+                            <option value="Todo realizado">Todo realizado</option>
+                            <option value="Con tareas pendientes">Con tareas pendientes</option>
+                        </select>
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" id="cancelNovedad"
+                                class="px-5 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition duration-150">
+                            Cancelar
+                        </button>
+                        <button type="submit"
+                                class="px-5 py-2 bg-sky-500 hover:bg-sky-700 text-white font-bold rounded-lg transition duration-150">
+                            Guardar Novedad
+                        </button>
+                    </div>
+                    <p id="novedadFormError" class="text-red-500 text-sm mt-3 text-center"></p>
+                </form>
+            </div>
+        </div>
+
+        <div id="detalleNovedadesModal" class="fixed inset-0 bg-slate-800 bg-opacity-75 flex items-center justify-center p-4 hidden-view z-50">
+            <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-2xl transform transition-all max-h-[90vh] flex flex-col">
+                 <div class="flex justify-between items-center mb-6">
+                    <h3 id="detalleNovedadesTitle" class="text-2xl font-semibold text-sky-600">Detalle de Novedades</h3>
+                    <button id="closeDetalleNovedadesModal" class="text-slate-500 hover:text-slate-700 text-2xl">&times;</button>
+                </div>
+                <div id="detalleNovedadesContent" class="overflow-y-auto"></div>
+            </div>
+        </div>
+
+        <div id="emailSimulacionModal" class="fixed inset-0 bg-slate-800 bg-opacity-75 flex items-center justify-center p-4 hidden-view z-50">
+            <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-xl transform transition-all max-h-[90vh] flex flex-col">
+                 <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold text-sky-600">Simulación de Envío de Correo</h3>
+                    <button id="closeEmailSimulacionModal" class="text-slate-500 hover:text-slate-700 text-2xl">&times;</button>
+                </div>
+                <div class="text-sm space-y-3">
+                    <div>
+                        <strong class="block text-slate-700">Destinatarios:</strong>
+                        <p id="emailSimDestinatarios" class="text-slate-600 bg-slate-50 p-2 rounded-md"></p>
+                    </div>
+                    <div>
+                        <strong class="block text-slate-700">Asunto:</strong>
+                        <p id="emailSimAsunto" class="text-slate-600 bg-slate-50 p-2 rounded-md"></p>
+                    </div>
+                    <div>
+                        <strong class="block text-slate-700">Cuerpo del Mensaje:</strong>
+                        <pre id="emailSimCuerpo" class="text-slate-600 bg-slate-50 p-2 rounded-md whitespace-pre-wrap h-48 overflow-y-auto"></pre>
+                    </div>
+                </div>
+                 <button id="okEmailSimulacionModal" class="mt-6 w-full bg-sky-500 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded-lg transition duration-150">
+                    Entendido
+                </button>
+            </div>
+        </div>
+
+
+    </div> <script src="app.js"></script>
+</body>
+</html>
