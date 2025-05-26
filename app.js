@@ -187,7 +187,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 cuadernos = snapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
             }
 
-            // Simplificar query para evitar error de índice, ordenar en cliente si es necesario después
             const novedadesSnapshot = await db.collection(COLECCION_NOVEDADES).orderBy("fecha", "desc").get();
             novedades = novedadesSnapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
             console.log("Novedades cargadas:", novedades.length);
@@ -314,7 +313,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // Capturar credenciales del admin si es un login de admin y no se han capturado antes
             if (currentUser.rol === 'admin' && loginForm.elements.loginEmail.value && loginForm.elements.loginPassword.value) {
                  if(!adminCredentials || adminCredentials.email !== loginForm.elements.loginEmail.value) { 
                     adminCredentials = { email: loginForm.elements.loginEmail.value, password: loginForm.elements.loginPassword.value };
@@ -357,13 +355,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             console.log(`Intentando iniciar sesión con email: ${emailInput}`);
-            // Guardar credenciales temporalmente para el posible re-login del admin
             adminCredentials = { email: emailInput, password: passwordInput };
             console.log("Admin credentials potentially set in handleLogin:", adminCredentials);
 
 
             await auth.signInWithEmailAndPassword(emailInput, passwordInput);
-            // onAuthStateChanged se encargará de la redirección y carga de datos.
         } catch (error) {
             console.error("Error de inicio de sesión:", error.code, error.message);
             let friendlyMessage = "Email o contraseña incorrectos.";
@@ -577,6 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function popularSelectUsuariosOperarios(selectedUserIds = []) {
         if (!cuadernoUsuariosAsignadosContainer) return;
         cuadernoUsuariosAsignadosContainer.innerHTML = ''; 
+        // Asegurarse que 'usuarios' (con UIDs) esté poblado
         const operarios = usuarios.filter(u => u.rol === 'operario');
 
         if (operarios.length === 0) {
@@ -630,8 +627,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         cuadernoParaEditar = { firestoreDocId: docSnap.id, ...docSnap.data()};
                     } else {
                         console.error("Cuaderno para editar no encontrado en Firestore:", firestoreDocId);
+                        cuadernoFormError.textContent = "Error: No se encontró el cuaderno para editar.";
+                        return; // Salir si no se encuentra el cuaderno
                     }
-                } catch(e){ console.error("Error obteniendo cuaderno para editar:", e); }
+                } catch(e){ 
+                    console.error("Error obteniendo cuaderno para editar:", e);
+                    cuadernoFormError.textContent = "Error al cargar datos del cuaderno.";
+                    return; // Salir si hay error
+                }
             }
 
             formCuadernoTitle.textContent = cuadernoParaEditar ? 'Editar Cuaderno' : 'Agregar Nuevo Cuaderno';
@@ -669,9 +672,14 @@ document.addEventListener('DOMContentLoaded', () => {
             cuadernoEmailsTodoRealizadoInput.value = cuadernoParaEditar ? (cuadernoParaEditar.emailsTodoRealizado || '') : '';
             cuadernoEmailsConPendientesInput.value = cuadernoParaEditar ? (cuadernoParaEditar.emailsConPendientes || '') : '';
 
+            // Asegurar que 'usuarios' (con UIDs) esté cargado antes de popular el selector
             if (usuarios.length === 0 && currentUser && currentUser.rol === 'admin') { 
-                const usuariosSnapshot = await db.collection(COLECCION_USUARIOS).get();
-                usuarios = usuariosSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
+                try {
+                    const usuariosSnapshot = await db.collection(COLECCION_USUARIOS).get();
+                    usuarios = usuariosSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
+                } catch(e) {
+                    console.error("Error cargando usuarios para el formulario de cuaderno:", e);
+                }
             }
             popularSelectUsuariosOperarios(cuadernoParaEditar ? (cuadernoParaEditar.usuariosAsignados || []) : []);
 
@@ -698,9 +706,9 @@ document.addEventListener('DOMContentLoaded', () => {
         tablaCuadernosBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center">Cargando cuadernos...</td></tr>';
         
         try {
-            if (cuadernos.length === 0 && currentUser) { 
-                 await cargarDatosGlobales(); 
-            }
+            // 'cuadernos' se carga en cargarDatosGlobales, que es llamado por onAuthStateChanged
+            // Si es necesario un refresco forzado, se puede llamar a cargarDatosGlobales() aquí.
+            // await cargarDatosGlobales(); 
 
             tablaCuadernosBody.innerHTML = ''; 
             if (cuadernos.length === 0) {
@@ -708,6 +716,7 @@ document.addEventListener('DOMContentLoaded', () => {
                  return;
             }
 
+            // Asegurar que 'usuarios' esté poblado para mostrar nombres asignados
             if (usuarios.length === 0 && currentUser && currentUser.rol === 'admin') {
                 const usuariosSnapshot = await db.collection(COLECCION_USUARIOS).get();
                 usuarios = usuariosSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
@@ -876,16 +885,20 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (linea && familiaActual) { 
                 familiaActual.tareas.push(linea);
             } else if (linea && !familiaActual) { 
-                 if (familias.length === 0 || familias[familias.length-1].nombreFamilia !== "Tareas Generales") { 
+                 if (familias.length === 0 || (familias.length > 0 && familias[familias.length-1].nombreFamilia !== "Tareas Generales")) { 
                     familiaActual = { nombreFamilia: "Tareas Generales", tareas: [linea] };
-                 } else { 
+                    // No añadir inmediatamente a familias hasta que haya más tareas o cambie la familia
+                 } else if (familias.length > 0 && familias[familias.length-1].nombreFamilia === "Tareas Generales") { 
                     familias[familias.length-1].tareas.push(linea);
+                 } else { // Caso improbable, pero para cubrir
+                    familiaActual = { nombreFamilia: "Tareas Generales", tareas: [linea] };
                  }
             }
         });
         if (familiaActual && familiaActual.tareas.length > 0) { 
              familias.push(familiaActual);
         }
+        // Si solo hay tareas sin familia definida explícitamente, y familiaActual se creó como "Tareas Generales"
         if (familias.length === 0 && familiaActual && familiaActual.nombreFamilia === "Tareas Generales" && familiaActual.tareas.length > 0) {
             familias.push(familiaActual);
         }
