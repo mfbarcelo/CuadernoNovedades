@@ -288,7 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 console.warn(`onAuthStateChanged: Documento para usuario ${user.uid} no encontrado en Firestore.`);
                 // CAMBIA "mfbarcelo@gmail.com" AL EMAIL EXACTO DE TU ADMIN EN FIREBASE AUTH
-                if (user.email === "mfbarcelo@gmail.com") { 
+                if (user.email === "mfbarcelo@gmail.com") {  // <-- ¡¡ASEGÚRATE QUE ESTE EMAIL SEA EL DE TU ADMIN!!
                      console.log("Intentando establecer rol de admin para el usuario semilla.");
                      try {
                         const adminData = {
@@ -869,7 +869,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- FUNCIONALIDAD DEL OPERARIO ---
     async function renderizarDashboardOperario() {
-        if (!operarioCuadernosContainer || !currentUser || !currentUser.uid) { // Verificar currentUser.uid
+        if (!operarioCuadernosContainer || !currentUser || !currentUser.uid) { 
             if(operarioWelcomeMessage) operarioWelcomeMessage.textContent = 'No tienes cuadernos asignados o no eres un operario.';
             if(operarioCuadernosContainer) operarioCuadernosContainer.innerHTML = '';
             return;
@@ -1048,7 +1048,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const docRef = await db.collection(COLECCION_NOVEDADES).add(nuevaNovedad);
             console.log("Nueva novedad guardada en Firestore con ID: ", docRef.id);
             
-            await cargarDatosGlobales(); // Recargar novedades para incluir la nueva
+            await cargarDatosGlobales(); 
 
             simularEnvioEmail(nuevaNovedad); 
             cerrarFormularioNovedad();
@@ -1513,7 +1513,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const docRef = await db.collection(COLECCION_CHECKLISTS).add(nuevaEntradaChecklist);
             console.log("Nueva entrada de checklist guardada en Firestore con ID: ", docRef.id);
             
-            await cargarDatosGlobales(); // Recargar para incluir la nueva entrada
+            await cargarDatosGlobales(); 
 
             simularEnvioEmail(nuevaEntradaChecklist, 'checklist');
             
