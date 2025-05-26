@@ -150,8 +150,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- LÓGICA DE DATOS (Firestore) ---
     async function cargarDatosGlobales() { 
         try {
+            console.log("Iniciando carga de datos globales desde Firestore...");
             const cuadernosSnapshot = await db.collection(COLECCION_CUADERNOS).orderBy("nombre").get(); 
             cuadernos = cuadernosSnapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
+            console.log("Cuadernos cargados:", cuadernos.length);
             
             if (cuadernosSnapshot.empty && currentUser && currentUser.rol === 'admin') { 
                 console.log("No hay cuadernos en Firestore, creando datos semilla...");
@@ -185,19 +187,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 cuadernos = snapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
             }
 
-            // Simplificar query para evitar error de índice, ordenar en cliente si es necesario después
             const novedadesSnapshot = await db.collection(COLECCION_NOVEDADES).orderBy("fecha", "desc").get();
             novedades = novedadesSnapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
+            console.log("Novedades cargadas:", novedades.length);
 
             const checklistsSnapshot = await db.collection(COLECCION_CHECKLISTS).orderBy("fecha", "desc").get();
             checklistEntradas = checklistsSnapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
+            console.log("Checklists cargados:", checklistEntradas.length);
             
-            console.log("Datos globales cargados desde Firestore:", { cuadernos, novedades, checklistEntradas });
+            console.log("Datos globales completamente cargados desde Firestore.");
 
         } catch (error) {
             console.error("Error cargando datos globales desde Firestore: ", error);
              if (error.code === 'failed-precondition') {
-                alert("Error de Firestore: La consulta requiere un índice que no existe. Por favor, crea el índice en la consola de Firebase como se indica en los logs del navegador, o contacta al desarrollador para simplificar la consulta.");
+                alert("Error de Firestore: La consulta para novedades o checklists requiere un índice compuesto (fecha desc). Por favor, crea los índices en la consola de Firebase como se indica en los logs del navegador (el enlace que te da Firebase), o contacta al desarrollador para simplificar la consulta. Para la demo, la ordenación por hora ha sido eliminada temporalmente para evitar este error con los datos semilla.");
             }
         }
     }
@@ -310,9 +313,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            if (currentUser.rol === 'admin' && loginForm.elements.loginEmail.value && loginForm.elements.loginPassword.value && !adminCredentials) {
-                 adminCredentials = { email: loginForm.elements.loginEmail.value, password: loginForm.elements.loginPassword.value };
-                 console.log("Credenciales de admin capturadas para re-login.");
+            if (currentUser.rol === 'admin' && loginForm.elements.loginEmail.value && loginForm.elements.loginPassword.value) {
+                 if(!adminCredentials || adminCredentials.email !== loginForm.elements.loginEmail.value) { // Solo si es un nuevo login de admin
+                    adminCredentials = { email: loginForm.elements.loginEmail.value, password: loginForm.elements.loginPassword.value };
+                    console.log("Credenciales de admin capturadas para re-login.");
+                 }
             }
 
 
@@ -323,6 +328,8 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (currentUser.rol === 'supervisor') mostrarVista(VISTAS.SUPERVISOR_DASHBOARD);
             else mostrarVista(VISTAS.LOGIN);
             
+            loginForm.reset(); // Resetear formulario de login después de procesar todo
+
         } else {
             currentUser = null;
             adminCredentials = null; 
@@ -348,12 +355,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             console.log(`Intentando iniciar sesión con email: ${emailInput}`);
-            adminCredentials = { email: emailInput, password: passwordInput };
+            // Guardar credenciales temporalmente para el posible re-login del admin si es un admin
+            // Esto es una simplificación.
+            if (emailInput === "mfbarcelo@gmail.com") { // O alguna otra forma de identificar al admin
+                adminCredentials = { email: emailInput, password: passwordInput };
+                 console.log("Credenciales de admin capturadas en handleLogin.");
+            } else {
+                adminCredentials = null;
+            }
+
 
             await auth.signInWithEmailAndPassword(emailInput, passwordInput);
             // onAuthStateChanged se encargará de la redirección y carga de datos.
-            // No resetear adminCredentials aquí, se usará si el admin crea un usuario.
-            // loginForm.reset(); // No resetear aquí, esperar a onAuthStateChanged
+            // No resetear el form aquí directamente, onAuthStateChanged lo hará si el login es exitoso.
         } catch (error) {
             console.error("Error de inicio de sesión:", error.code, error.message);
             let friendlyMessage = "Email o contraseña incorrectos.";
@@ -370,13 +384,14 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleLogout() {
         try {
             await auth.signOut();
-            loginForm.reset(); 
+            // loginForm.reset(); // onAuthStateChanged mostrará el login y el form estará vacío
         } catch (error) {
             console.error("Error al cerrar sesión:", error);
         }
     }
 
     // --- GESTIÓN DE USUARIOS (ADMIN) ---
+    // ... (sin cambios)
     function toggleFormularioUsuario(mostrar = true, usuarioParaEditar = null) {
         if (mostrar) {
             editandoUsuarioId = usuarioParaEditar ? usuarioParaEditar.uid : null; 
@@ -454,7 +469,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const adminEmailActual = adminCredentials ? adminCredentials.email : (currentUser ? currentUser.email : null);
+        const adminEmailActual = adminCredentials ? adminCredentials.email : null;
         const adminPasswordActual = adminCredentials ? adminCredentials.password : null;
 
 
@@ -491,8 +506,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log("Re-autenticando al administrador...");
                     await auth.signInWithEmailAndPassword(adminEmailActual, adminPasswordActual);
                     console.log("Administrador re-autenticado.");
+                    // onAuthStateChanged debería manejar la actualización de currentUser al admin
                 } else {
                     console.warn("No se pudieron obtener las credenciales del admin para re-autenticar. El admin podría necesitar re-loguearse.");
+                    // Si no hay credenciales de admin, el nuevo usuario queda logueado.
+                    // Para forzar el re-logueo del admin, se podría hacer auth.signOut() aquí,
+                    // pero eso cortaría el flujo del nuevo usuario también.
+                    // La lógica en onAuthStateChanged ya re-dirige según el rol del currentUser.
                 }
             }
             await renderizarTablaUsuarios(); 
@@ -506,13 +526,15 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 usuarioFormError.textContent = 'Error al guardar usuario: ' + error.message;
             }
+            // Si hubo un error creando el usuario en Auth (y el admin se deslogueó porque createUserWithEmailAndPassword loguea al nuevo),
+            // intentar re-loguear al admin.
             if (auth.currentUser && adminEmailActual && adminPasswordActual && auth.currentUser.email !== adminEmailActual) {
                 try {
                     console.log("Intentando re-loguear admin después de fallo en creación de usuario...");
                     await auth.signInWithEmailAndPassword(adminEmailActual, adminPasswordActual);
                 } catch (reloginError) {
                     console.error("Error re-logueando admin después de fallo en creación de usuario:", reloginError);
-                    await auth.signOut(); 
+                    await auth.signOut(); // Si el re-login falla, desloguear todo.
                 }
             }
         }
@@ -615,7 +637,6 @@ document.addEventListener('DOMContentLoaded', () => {
             cuadernoEmailsTodoRealizadoInput.value = cuadernoParaEditar ? (cuadernoParaEditar.emailsTodoRealizado || '') : '';
             cuadernoEmailsConPendientesInput.value = cuadernoParaEditar ? (cuadernoParaEditar.emailsConPendientes || '') : '';
 
-            // Asegurar que 'usuarios' esté cargado antes de popular el selector
             if (usuarios.length === 0 && currentUser && currentUser.rol === 'admin') { 
                 const usuariosSnapshot = await db.collection(COLECCION_USUARIOS).get();
                 usuarios = usuariosSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
@@ -645,11 +666,9 @@ document.addEventListener('DOMContentLoaded', () => {
         tablaCuadernosBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center">Cargando cuadernos...</td></tr>';
         
         try {
-            // 'cuadernos' ya debería estar cargado por cargarDatosGlobales()
-            // Si no, recargar aquí (aunque cargarDatosGlobales se llama en onAuthStateChanged):
-            if (cuadernos.length === 0 && currentUser) { 
-                 await cargarDatosGlobales(); // Esto ya carga 'cuadernos'
-            }
+            // 'cuadernos' se carga en cargarDatosGlobales, que es llamado por onAuthStateChanged
+            // No es necesario volver a cargarlo aquí a menos que queramos un refresco específico.
+            // await cargarDatosGlobales(); // Opcional: forzar recarga.
 
             tablaCuadernosBody.innerHTML = ''; 
             if (cuadernos.length === 0) {
@@ -740,19 +759,22 @@ document.addEventListener('DOMContentLoaded', () => {
             emailsConPendientes, 
             usuariosAsignados: usuariosAsignadosSeleccionados
         };
-        // No es necesario eliminar las propiedades antiguas de email si no existen en datosCuaderno
+        // No es necesario eliminar las propiedades antiguas de email explícitamente 
+        // si no se incluyen en datosCuaderno al hacer set/update.
 
         try {
             if (editandoCuadernoFirestoreId) { 
+                console.log("Actualizando cuaderno en Firestore:", editandoCuadernoFirestoreId, datosCuaderno);
                 await db.collection(COLECCION_CUADERNOS).doc(editandoCuadernoFirestoreId).update(datosCuaderno);
                 console.log("Cuaderno actualizado en Firestore:", editandoCuadernoFirestoreId);
             } else {
-                const docRef = db.collection(COLECCION_CUADERNOS).doc(idManual); // Usar idManual como ID del documento
+                const docRef = db.collection(COLECCION_CUADERNOS).doc(idManual); 
                 const docSnap = await docRef.get();
                 if (docSnap.exists) {
                     cuadernoFormError.textContent = 'El ID del cuaderno ya existe. Debe ser único.';
                     return;
                 }
+                console.log("Creando nuevo cuaderno en Firestore con ID:", idManual, datosCuaderno);
                 await docRef.set(datosCuaderno);
                 console.log("Nuevo cuaderno creado en Firestore con ID:", idManual);
             }
@@ -766,6 +788,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     async function handleEditarCuadernoClick(firestoreDocId) { 
+        console.log("Editando cuaderno con Firestore ID:", firestoreDocId);
         await toggleFormularioCuaderno(true, firestoreDocId); 
     }
 
@@ -814,7 +837,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         lineas.forEach(linea => {
             if (linea.startsWith('## ')) {
-                if (familiaActual) { 
+                if (familiaActual && familiaActual.tareas.length > 0) { // Solo guardar si tiene tareas
                     familias.push(familiaActual);
                 }
                 familiaActual = {
@@ -826,14 +849,18 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (linea && !familiaActual) { 
                  if (familias.length === 0 || familias[familias.length-1].nombreFamilia !== "Tareas Generales") { 
                     familiaActual = { nombreFamilia: "Tareas Generales", tareas: [linea] };
-                    familias.push(familiaActual); 
+                    // No la añadimos a familias hasta que tenga tareas o cambie la familia
                  } else { 
                     familias[familias.length-1].tareas.push(linea);
                  }
             }
         });
-        if (familiaActual && !familias.includes(familiaActual)) { 
+        if (familiaActual && familiaActual.tareas.length > 0) { // Guardar la última familia si tiene tareas
              familias.push(familiaActual);
+        }
+        // Si solo hay tareas sin familia definida explícitamente, y familiaActual se creó como "Tareas Generales"
+        if (familias.length === 0 && familiaActual && familiaActual.nombreFamilia === "Tareas Generales" && familiaActual.tareas.length > 0) {
+            familias.push(familiaActual);
         }
         return familias.filter(f => f.nombreFamilia && f.tareas.length > 0); 
     }
