@@ -113,6 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let editandoCuadernoFirestoreId = null; 
     let cuadernoActualOperario = null;  
     let vistaAnteriorParaDetalleCuaderno = null; 
+    let adminCredentials = null; // Para re-autenticar al admin después de crear un usuario
 
     const VISTAS = {
         LOGIN: 'loginView',
@@ -149,10 +150,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- LÓGICA DE DATOS (Firestore) ---
     async function cargarDatosGlobales() { 
         try {
-            const cuadernosSnapshot = await db.collection(COLECCION_CUADERNOS).orderBy("nombre").get(); // Ordenar por nombre para consistencia
+            const cuadernosSnapshot = await db.collection(COLECCION_CUADERNOS).orderBy("nombre").get(); 
             cuadernos = cuadernosSnapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
             
-            if (cuadernosSnapshot.empty && currentUser && currentUser.rol === 'admin') { // Solo el admin crea datos semilla
+            if (cuadernosSnapshot.empty && currentUser && currentUser.rol === 'admin') { 
                 console.log("No hay cuadernos en Firestore, creando datos semilla...");
                 const cuadernosSeed = [
                     {
@@ -184,7 +185,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 cuadernos = snapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
             }
 
-            // Simplificar query para evitar error de índice, ordenar en cliente si es necesario después
             const novedadesSnapshot = await db.collection(COLECCION_NOVEDADES).orderBy("fecha", "desc").get();
             novedades = novedadesSnapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
 
@@ -195,7 +195,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error("Error cargando datos globales desde Firestore: ", error);
-            // Mostrar un error más amigable al usuario si es necesario
         }
     }
 
@@ -282,7 +281,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 console.warn(`onAuthStateChanged: Documento para usuario ${user.uid} no encontrado en Firestore.`);
                 // CAMBIA "admin@ejemplo.com" AL EMAIL EXACTO DE TU ADMIN EN FIREBASE AUTH
-                if (user.email === "mfbarcelo@gmail.com") { 
+                if (user.email === "mfbarcelo@gmail.com") { // ¡¡IMPORTANTE: AJUSTA ESTE EMAIL!!
                      console.log("Intentando establecer rol de admin para el usuario semilla.");
                      try {
                         const adminData = {
@@ -307,6 +306,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
+            // Guardar las credenciales del admin actual si es un admin
+            if (currentUser.rol === 'admin' && adminCredentials === null) {
+                const adminEmail = document.getElementById('loginEmail').value;
+                const adminPassword = document.getElementById('loginPassword').value;
+                if (adminEmail && adminPassword) { // Solo si se usaron para el login actual
+                    adminCredentials = { email: adminEmail, password: adminPassword };
+                } else if (currentUser.email === "mfbarcelo@gmail.com") { // Email semilla
+                    // Para la demo, si es el admin semilla y no tenemos creds, podemos hardcodearlas
+                    // ¡¡NO HACER ESTO EN PRODUCCIÓN!!
+                    // adminCredentials = { email: "mfbarcelo@gmail.com", password: "tu_password_admin_semilla" };
+                    console.warn("Admin semilla logueado, pero no se capturaron credenciales para re-login automático tras crear usuario. El admin deberá re-loguearse manualmente.");
+                }
+            }
+
+
             await cargarDatosGlobales(); 
 
             if (currentUser.rol === 'admin') mostrarVista(VISTAS.ADMIN_DASHBOARD);
@@ -316,6 +330,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
         } else {
             currentUser = null;
+            adminCredentials = null; // Limpiar credenciales de admin al desloguear
             cuadernos = []; 
             novedades = [];
             checklistEntradas = [];
@@ -338,8 +353,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             console.log(`Intentando iniciar sesión con email: ${emailInput}`);
+            // Guardar credenciales si es el admin intentando loguearse
+            // (esto es una simplificación para la demo, no ideal para producción)
+            if (emailInput.toLowerCase().includes('admin')) { // O una comprobación más específica
+                 adminCredentials = { email: emailInput, password: passwordInput };
+            } else {
+                adminCredentials = null; // Limpiar si no es admin
+            }
+
             await auth.signInWithEmailAndPassword(emailInput, passwordInput);
-            // onAuthStateChanged se encargará de la redirección y carga de datos.
             loginForm.reset();
         } catch (error) {
             console.error("Error de inicio de sesión:", error.code, error.message);
@@ -350,6 +372,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 friendlyMessage = "El formato del email no es válido.";
             }
             loginError.textContent = friendlyMessage;
+            adminCredentials = null; // Limpiar si el login falla
         }
     }
 
@@ -393,7 +416,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tablaUsuariosBody.innerHTML = '<tr><td colspan="4" class="p-4 text-center">Cargando usuarios...</td></tr>';
         
         try {
-            const querySnapshot = await db.collection(COLECCION_USUARIOS).orderBy("nombreCompleto").get(); // Ordenar por nombre
+            const querySnapshot = await db.collection(COLECCION_USUARIOS).orderBy("nombreCompleto").get(); 
             const usuariosFirestore = [];
             querySnapshot.forEach((doc) => {
                 usuariosFirestore.push({ uid: doc.id, ...doc.data() });
@@ -439,6 +462,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const adminEmailActual = currentUser ? currentUser.email : null;
+        const adminPasswordActual = adminCredentials ? adminCredentials.password : null;
+
+
         try {
             if (editandoUsuarioId) { 
                 await db.collection(COLECCION_USUARIOS).doc(editandoUsuarioId).update({
@@ -448,7 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 console.log("Usuario actualizado en Firestore:", editandoUsuarioId);
                  if (password) {
-                    alert("Información del usuario actualizada. Para cambiar la contraseña de un usuario existente, por favor use la consola de Firebase Authentication o implemente una función de 'reset password'.");
+                    alert("Información del usuario actualizada. Para cambiar la contraseña de un usuario existente, por favor use la consola de Firebase Authentication o implemente una función específica para ello.");
                 }
             } else {
                 if (!password) {
@@ -456,10 +483,12 @@ document.addEventListener('DOMContentLoaded', () => {
                      return;
                 }
                 
+                // Crear el nuevo usuario
                 const userCredential = await auth.createUserWithEmailAndPassword(email, password);
                 const newUser = userCredential.user;
                 console.log("Nuevo usuario creado en Firebase Auth:", newUser.uid);
 
+                // Guardar información adicional en Firestore
                 await db.collection(COLECCION_USUARIOS).doc(newUser.uid).set({
                     uid: newUser.uid,
                     email: email,
@@ -467,6 +496,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     rol: rol
                 });
                 console.log("Información adicional del usuario guardada en Firestore");
+
+                // Re-autenticar al administrador si se guardaron sus credenciales
+                if (adminEmailActual && adminPasswordActual) {
+                    console.log("Re-autenticando al administrador...");
+                    await auth.signInWithEmailAndPassword(adminEmailActual, adminPasswordActual);
+                    console.log("Administrador re-autenticado.");
+                } else {
+                    console.warn("No se pudieron obtener las credenciales del admin para re-autenticar. El admin podría necesitar re-loguearse.");
+                    // Opcionalmente, forzar logout del admin para que re-loguee
+                    // await auth.signOut(); 
+                    // return; // Salir para evitar que la UI cambie al nuevo usuario
+                }
             }
             await renderizarTablaUsuarios(); 
             toggleFormularioUsuario(false); 
@@ -529,18 +570,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- GESTIÓN DE CUADERNOS (ADMIN) ---
-    // ... (Las funciones de cuadernos se migrarán en el siguiente paso) ...
     async function renderizarTablaCuadernos() { 
         if (!tablaCuadernosBody) return;
         tablaCuadernosBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center">Cargando cuadernos...</td></tr>';
         
         try {
             // 'cuadernos' ya debería estar cargado por cargarDatosGlobales()
-            // Si no, recargar aquí:
-            if (cuadernos.length === 0 && currentUser) { // Solo recargar si está vacío y hay usuario
+            // Si no, recargar aquí (aunque cargarDatosGlobales se llama en onAuthStateChanged):
+            if (cuadernos.length === 0 && currentUser) { 
                  await cargarDatosGlobales();
             }
-
 
             tablaCuadernosBody.innerHTML = ''; 
             if (cuadernos.length === 0) {
@@ -548,13 +587,20 @@ document.addEventListener('DOMContentLoaded', () => {
                  return;
             }
 
+            // Asegurar que 'usuarios' esté poblado para mostrar nombres asignados
+            if (usuarios.length === 0 && currentUser && currentUser.rol === 'admin') {
+                const usuariosSnapshot = await db.collection(COLECCION_USUARIOS).get();
+                usuarios = usuariosSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
+            }
+
+
             cuadernos.forEach(cuaderno => {
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-slate-50 transition-colors';
                 
                 const nombresUsuariosAsignados = (cuaderno.usuariosAsignados || []) 
                     .map(userId => {
-                        const user = usuarios.find(u => u.uid === userId); // Comparar con uid
+                        const user = usuarios.find(u => u.uid === userId); 
                         return user ? user.nombreCompleto : 'ID Desconocido';
                     })
                     .join(', ');
@@ -618,7 +664,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const datosCuaderno = {
-            id: idManual, // Guardar el ID manual
+            id: idManual, 
             nombre, tipo, tareasDefinicion, colorClase,
             emailsTodoRealizado, 
             emailsConPendientes, 
@@ -626,11 +672,10 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         try {
-            if (editandoCuadernoFirestoreId) { // Este es el ID del documento de Firestore
+            if (editandoCuadernoFirestoreId) { 
                 await db.collection(COLECCION_CUADERNOS).doc(editandoCuadernoFirestoreId).update(datosCuaderno);
                 console.log("Cuaderno actualizado en Firestore:", editandoCuadernoFirestoreId);
             } else {
-                // Al crear, el ID manual (idManual) será el ID del documento en Firestore
                 const docRef = db.collection(COLECCION_CUADERNOS).doc(idManual);
                 const docSnap = await docRef.get();
                 if (docSnap.exists) {
@@ -640,7 +685,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 await docRef.set(datosCuaderno);
                 console.log("Nuevo cuaderno creado en Firestore con ID:", idManual);
             }
-            await cargarDatosGlobales(); // Recargar todos los cuadernos
+            await cargarDatosGlobales(); 
             await renderizarTablaCuadernos(); 
             toggleFormularioCuaderno(false);
         } catch (error) {
@@ -649,51 +694,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    async function handleEditarCuadernoClick(firestoreDocId) { 
-        await toggleFormularioCuaderno(true, firestoreDocId); 
-    }
-
-    async function handleEliminarCuadernoClick(firestoreDocId) { 
-        const cuadernoAEliminar = cuadernos.find(c => c.firestoreDocId === firestoreDocId);
-        if (!cuadernoAEliminar) {
-            console.error("Cuaderno a eliminar no encontrado en el array local:", firestoreDocId);
-            return;
-        }
-
-        if (confirm(`¿Estás seguro de que quieres eliminar el cuaderno "${cuadernoAEliminar.nombre}"? Esta acción no se puede deshacer y eliminará todas sus novedades y checklists.`)) {
-            try {
-                // Eliminar el cuaderno
-                await db.collection(COLECCION_CUADERNOS).doc(firestoreDocId).delete();
-                
-                // Eliminar novedades asociadas (esto puede ser costoso si hay muchas, considerar funciones de Firebase para producción)
-                const novedadesQuery = db.collection(COLECCION_NOVEDADES).where("cuadernoId", "==", cuadernoAEliminar.id);
-                const novedadesSnap = await novedadesQuery.get();
-                const batchNovedades = db.batch();
-                novedadesSnap.forEach(doc => batchNovedades.delete(doc.ref));
-                await batchNovedades.commit();
-
-                // Eliminar checklists asociados
-                const checklistsQuery = db.collection(COLECCION_CHECKLISTS).where("cuadernoId", "==", cuadernoAEliminar.id);
-                const checklistsSnap = await checklistsQuery.get();
-                const batchChecklists = db.batch();
-                checklistsSnap.forEach(doc => batchChecklists.delete(doc.ref));
-                await batchChecklists.commit();
-
-                console.log("Cuaderno y sus entradas eliminados de Firestore:", firestoreDocId);
-                
-                await cargarDatosGlobales(); // Recargar todos los datos
-                await renderizarTablaCuadernos(); 
-                if (editandoCuadernoFirestoreId === firestoreDocId) {
-                    toggleFormularioCuaderno(false);
-                }
-            } catch (error) {
-                console.error("Error eliminando cuaderno de Firestore:", error);
-                alert("Error al eliminar cuaderno.");
-            }
-        }
-    }
-
     // --- PLACEHOLDERS PARA FUNCIONES RESTANTES ---
+    // ... (Mantener las funciones de popularSelectores, parseTareas, y las de operario/supervisor/checklist/novedades como placeholders por ahora)
+    // ... (El foco de esta actualización es arreglar el login y la gestión básica de usuarios/cuadernos con Firestore)
     function popularSelectUsuariosOperarios(selectedUserIds = []) { /* ... (mantenida para referencia, necesita 'usuarios' poblado) ... */ }
     function popularSelectorColorCuaderno(claseColorSeleccionada = '') { /* ... (mantenida) ... */ }
     function parseTareasDefinicion(textoTareas) { /* ... (mantenida) ... */ }
@@ -711,6 +714,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderizarHistorialChecklists(cuadernoFirestoreId) { if(historialChecklistsCuaderno) historialChecklistsCuaderno.innerHTML = '<p>Historial Checklist con Firebase: Pendiente.</p>';}
     function simularEnvioEmail(entrada, tipoEntrada = 'novedad') { /* ... (mantenida, pero dependerá de 'cuadernos' cargado) ... */ }
     
+
 
     // --- INICIALIZACIÓN Y EVENT LISTENERS ---
     if (loginForm) loginForm.addEventListener('submit', handleLogin);
