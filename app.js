@@ -1,4 +1,5 @@
 // app.js - Lógica para el Cuaderno de Novedades del Laboratorio
+/// app.js - Lógica para el Cuaderno de Novedades del Laboratorio
 // Versión con Firebase (Autenticación y Firestore)
 
 document.addEventListener('DOMContentLoaded', () => {
