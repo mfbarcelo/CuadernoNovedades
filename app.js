@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("Iniciando carga de datos globales desde Firestore...");
             const cuadernosSnapshot = await db.collection(COLECCION_CUADERNOS).orderBy("nombre").get(); 
             cuadernos = cuadernosSnapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
-            console.log("Cuadernos cargados:", cuadernos.length, cuadernos);
+            console.log("Cuadernos cargados:", cuadernos.length, JSON.parse(JSON.stringify(cuadernos))); // Log para ver la data
             
             if (cuadernosSnapshot.empty && currentUser && currentUser.rol === 'admin') { 
                 console.log("No hay cuadernos en Firestore, creando datos semilla...");
@@ -325,7 +325,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (currentUser.rol === 'admin') mostrarVista(VISTAS.ADMIN_DASHBOARD);
             else if (currentUser.rol === 'operario') mostrarVista(VISTAS.OPERARIO_DASHBOARD);
-            else if (currentUser.rol === 'supervisor') mostrarVista(VISTAS.SUPERVISOR_DASHBOARD); // Supervisor va al tablero general por defecto
+            else if (currentUser.rol === 'supervisor') mostrarVista(VISTAS.SUPERVISOR_DASHBOARD); 
             else mostrarVista(VISTAS.LOGIN);
             
             loginForm.reset(); 
@@ -355,11 +355,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             console.log(`Intentando iniciar sesión con email: ${emailInput}`);
-            adminCredentials = { email: emailInput, password: passwordInput }; // Guardar para posible re-login
+            adminCredentials = { email: emailInput, password: passwordInput };
             console.log("Admin credentials potentially set in handleLogin:", adminCredentials);
 
             await auth.signInWithEmailAndPassword(emailInput, passwordInput);
-            // onAuthStateChanged se encargará de la redirección
         } catch (error) {
             console.error("Error de inicio de sesión:", error.code, error.message);
             let friendlyMessage = "Email o contraseña incorrectos.";
@@ -570,37 +569,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- GESTIÓN DE CUADERNOS (ADMIN) ---
-    function popularSelectUsuariosOperarios(selectedUserIds = []) {
-        if (!cuadernoUsuariosAsignadosContainer) return;
-        cuadernoUsuariosAsignadosContainer.innerHTML = ''; 
-        const operarios = usuarios.filter(u => u.rol === 'operario');
-
-        if (operarios.length === 0) {
-            cuadernoUsuariosAsignadosContainer.innerHTML = '<p class="text-sm text-slate-500">No hay usuarios operarios para asignar.</p>';
-            return;
-        }
-
-        operarios.forEach(op => {
-            const checkboxId = `user-assign-${op.uid}`;
-            const label = document.createElement('label');
-            label.htmlFor = checkboxId;
-            label.className = 'flex items-center space-x-2 p-1 hover:bg-slate-100 rounded cursor-pointer';
-            
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.id = checkboxId;
-            checkbox.value = op.uid;
-            checkbox.className = 'form-checkbox h-4 w-4 text-sky-600 border-slate-300 rounded focus:ring-sky-500';
-            if (selectedUserIds.includes(op.uid)) {
-                checkbox.checked = true;
-            }
-            
-            label.appendChild(checkbox);
-            label.appendChild(document.createTextNode(`${op.nombreCompleto} (${op.email})`));
-            cuadernoUsuariosAsignadosContainer.appendChild(label);
-        });
-    }
-
     function popularSelectorColorCuaderno(claseColorSeleccionada = '') { 
         if (!cuadernoColorSelect) return;
         cuadernoColorSelect.innerHTML = ''; 
@@ -645,12 +613,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cuadernoNombreInput.value = cuadernoParaEditar ? cuadernoParaEditar.nombre : '';
             cuadernoTipoSelect.value = cuadernoParaEditar ? cuadernoParaEditar.tipo : 'novedades'; 
             
-            // Asegurar que la función exista antes de llamarla
-            if (typeof popularSelectorColorCuaderno === 'function') {
-                popularSelectorColorCuaderno(cuadernoParaEditar ? cuadernoParaEditar.colorClase : COLORES_CUADERNO[0].clase);
-            } else {
-                console.error("popularSelectorColorCuaderno no está definida.");
-            }
+            popularSelectorColorCuaderno(cuadernoParaEditar ? cuadernoParaEditar.colorClase : COLORES_CUADERNO[0].clase);
 
 
             const esChecklist = cuadernoTipoSelect.value === 'checklist';
@@ -712,8 +675,8 @@ document.addEventListener('DOMContentLoaded', () => {
         tablaCuadernosBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center">Cargando cuadernos...</td></tr>';
         
         try {
-            // Cargar o asegurar que los cuadernos estén actualizados desde Firestore
-            await cargarDatosGlobales(); 
+            // Ya no se llama a cargarDatosGlobales() aquí, se asume que está actualizado
+            // por onAuthStateChanged o después de una operación de guardado/eliminación.
 
             tablaCuadernosBody.innerHTML = ''; 
             if (cuadernos.length === 0) {
@@ -872,7 +835,237 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- PLACEHOLDERS PARA FUNCIONES RESTANTES ---
+    // --- FUNCIONALIDAD DEL OPERARIO ---
+    async function renderizarDashboardOperario() {
+        if (!operarioCuadernosContainer || !currentUser || currentUser.rol !== 'operario') {
+            if(operarioWelcomeMessage) operarioWelcomeMessage.textContent = 'No tienes cuadernos asignados o no eres un operario.';
+            if(operarioCuadernosContainer) operarioCuadernosContainer.innerHTML = '';
+            return;
+        }
+
+        if(operarioWelcomeMessage) operarioWelcomeMessage.textContent = `Bienvenido, ${currentUser.nombreCompleto}. Selecciona un cuaderno para ver/registrar novedades:`;
+        operarioCuadernosContainer.innerHTML = ''; 
+
+        // 'cuadernos' ya debería estar cargado desde cargarDatosGlobales
+        const cuadernosAsignadosAlOperario = cuadernos.filter(cuaderno =>
+            (cuaderno.usuariosAsignados || []).includes(currentUser.uid) // Comparar con currentUser.uid
+        );
+        console.log("Cuadernos asignados al operario:", cuadernosAsignadosAlOperario);
+
+
+        if (cuadernosAsignadosAlOperario.length === 0) {
+            operarioCuadernosContainer.innerHTML = '<p class="text-slate-600">No tienes cuadernos asignados actualmente.</p>';
+            return;
+        }
+
+        const grid = document.createElement('div');
+        grid.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'; 
+        
+        cuadernosAsignadosAlOperario.forEach(cuaderno => {
+            const card = document.createElement('div');
+            const colorClasses = cuaderno.colorClase || COLORES_CUADERNO[0].clase; 
+            card.className = `p-5 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out cursor-pointer flex flex-col justify-between min-h-[150px] ${colorClasses}`;
+            
+            card.addEventListener('click', () => mostrarVista(VISTAS.OPERARIO_CUADERNO_DETALLE, {cuadernoId: cuaderno.firestoreDocId, cuadernoNombre: cuaderno.nombre, vistaRetorno: VISTAS.OPERARIO_DASHBOARD}));
+            
+            const nombreCuaderno = document.createElement('h3');
+            nombreCuaderno.textContent = cuaderno.nombre;
+            const esColorOscuro = colorClasses.includes('text-white');
+            nombreCuaderno.className = `text-xl font-bold mb-3 ${esColorOscuro ? 'text-white' : 'text-slate-800'}`;
+            card.appendChild(nombreCuaderno);
+
+            const verNovedadesText = document.createElement('p');
+            verNovedadesText.textContent = 'Ver/Registrar Novedades \u2192'; 
+            verNovedadesText.className = `text-sm font-semibold self-start mt-auto ${esColorOscuro ? 'hover:text-slate-200' : 'hover:text-sky-700'}`;
+            card.appendChild(verNovedadesText);
+            
+            grid.appendChild(card);
+        });
+        operarioCuadernosContainer.appendChild(grid);
+    }
+
+    async function mostrarDetalleCuadernoOperario(cuadernoFirestoreId, cuadernoNombre, vistaDeRetorno) {
+        const cuaderno = cuadernos.find(c => c.firestoreDocId === cuadernoFirestoreId);
+        if (!cuaderno) {
+            console.error("Cuaderno no encontrado para detalle (ID Firestore):", cuadernoFirestoreId);
+            if (vistaAnteriorParaDetalleCuaderno) mostrarVista(vistaAnteriorParaDetalleCuaderno);
+            else if (currentUser.rol === 'operario') mostrarVista(VISTAS.OPERARIO_DASHBOARD);
+            else if (currentUser.rol === 'supervisor') mostrarVista(VISTAS.SUPERVISOR_GESTION_NOVEDADES);
+            return;
+        }
+        
+        cuadernoActualOperario = { id: cuaderno.id, nombre: cuaderno.nombre, firestoreDocId: cuaderno.firestoreDocId, tipo: cuaderno.tipo }; // Guardar el ID manual y el de Firestore
+        vistaAnteriorParaDetalleCuaderno = vistaDeRetorno; 
+        if (detalleCuadernoNombre) detalleCuadernoNombre.textContent = `Novedades de: ${cuaderno.nombre}`;
+        
+        if (novedadCalificacionSelect) {
+            novedadCalificacionSelect.innerHTML = `
+                <option value="">Seleccione una calificación...</option>
+                <option value="${CALIFICACIONES_UNIFICADAS.TODO_REALIZADO}">${CALIFICACIONES_UNIFICADAS.TODO_REALIZADO}</option>
+                <option value="${CALIFICACIONES_UNIFICADAS.CON_TAREAS_PENDIENTES}">${CALIFICACIONES_UNIFICADAS.CON_TAREAS_PENDIENTES}</option>
+            `;
+        }
+        if (checklistCalificacionSelect) { 
+             checklistCalificacionSelect.innerHTML = `
+                <option value="">Seleccione una calificación...</option>
+                <option value="${CALIFICACIONES_UNIFICADAS.TODO_REALIZADO}">${CALIFICACIONES_UNIFICADAS.TODO_REALIZADO}</option>
+                <option value="${CALIFICACIONES_UNIFICADAS.CON_TAREAS_PENDIENTES}">${CALIFICACIONES_UNIFICADAS.CON_TAREAS_PENDIENTES}</option>
+            `;
+        }
+
+
+        if (cuaderno.tipo === 'checklist') {
+            detalleContenidoNovedades.classList.add('hidden-view');
+            detalleContenidoChecklist.classList.remove('hidden-view');
+            btnAbrirFormNovedadDesdeDetalle.classList.add('hidden-view'); 
+            renderizarFormularioChecklist(cuaderno);
+            await renderizarHistorialChecklists(cuaderno.id); // Usar ID manual para filtrar
+        } else { 
+            detalleContenidoChecklist.classList.add('hidden-view');
+            detalleContenidoNovedades.classList.remove('hidden-view');
+            btnAbrirFormNovedadDesdeDetalle.classList.remove('hidden-view'); 
+            await renderizarNovedadesDeCuaderno(cuaderno.id); // Usar ID manual para filtrar
+        }
+    }
+
+    async function renderizarNovedadesDeCuaderno(cuadernoIdManual) { // Recibe el ID manual del cuaderno
+        if (!listaNovedadesCuadernoOperario) return;
+        listaNovedadesCuadernoOperario.innerHTML = '<p class="text-slate-500 p-4 text-center">Cargando novedades...</p>';
+
+        try {
+            // 'novedades' ya está cargado globalmente y ordenado por fecha desc
+            const novedadesDelCuaderno = novedades
+                .filter(n => n.cuadernoId === cuadernoIdManual)
+                .sort((a, b) => { // Re-ordenar por hora si es necesario, aunque ya vienen por fecha
+                    const dateA = new Date(a.fecha.split('/').reverse().join('-') + 'T' + a.hora);
+                    const dateB = new Date(b.fecha.split('/').reverse().join('-') + 'T' + b.hora);
+                    return dateB - dateA;
+                });
+            
+            listaNovedadesCuadernoOperario.innerHTML = '';
+            if (novedadesDelCuaderno.length === 0) {
+                listaNovedadesCuadernoOperario.innerHTML = '<p class="text-slate-500 p-4 text-center">No hay novedades registradas para este cuaderno.</p>';
+                return;
+            }
+
+            novedadesDelCuaderno.forEach(novedad => {
+                const card = document.createElement('div');
+                const calificacionBorde = novedad.calificacion === CALIFICACIONES_UNIFICADAS.TODO_REALIZADO ? 'Todo-realizado' : 'Con-tareas-pendientes';
+                const calificacionClass = `calificacion-${calificacionBorde.replace(/\s+/g, '-')}`; 
+                card.className = `novedad-card bg-white p-4 rounded-lg shadow-sm ${calificacionClass}`;
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <span class="text-xs font-semibold text-slate-600">${novedad.fecha} - ${novedad.hora} - Turno: ${novedad.turno}</span>
+                        <span class="px-2 py-0.5 text-xs font-medium rounded-full 
+                            ${getCalificacionColorClass(novedad.calificacion, 'text', 'novedades')}"> 
+                            ${novedad.calificacion}
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-1 mb-2">Reportado por: ${novedad.nombreUsuario}</p>
+                    <p class="text-sm text-slate-700 whitespace-pre-wrap">${novedad.texto}</p>
+                `;
+                listaNovedadesCuadernoOperario.appendChild(card);
+            });
+        } catch (error) {
+            console.error("Error renderizando novedades:", error);
+            listaNovedadesCuadernoOperario.innerHTML = '<p class="text-red-500 p-4 text-center">Error al cargar novedades.</p>';
+        }
+    }
+
+
+    function abrirFormularioNovedad(cuadernoIdManual, cuadernoNombre) { // Recibe el ID manual
+        if (!formNovedadModal) return;
+        formNovedad.reset(); 
+        novedadCuadernoIdInput.value = cuadernoIdManual; // Guardar el ID manual
+        novedadCuadernoNombreInput.value = cuadernoNombre;
+        formNovedadTitle.textContent = `Registrar Novedad para: ${cuadernoNombre}`;
+        novedadFormError.textContent = '';
+        formNovedadModal.style.display = 'flex'; 
+    }
+
+    function cerrarFormularioNovedad() {
+        if (formNovedadModal) formNovedadModal.style.display = 'none';
+    }
+
+    async function handleGuardarNovedad(event) { 
+        event.preventDefault();
+        novedadFormError.textContent = '';
+
+        const cuadernoIdManual = novedadCuadernoIdInput.value; // Este es el ID manual
+        const turno = novedadTurnoSelect.value;
+        const texto = novedadTextoTextarea.value.trim();
+        const calificacion = novedadCalificacionSelect.value; 
+
+        if (!cuadernoIdManual || !turno || !texto || !calificacion) {
+            novedadFormError.textContent = 'Todos los campos son obligatorios.';
+            return;
+        }
+
+        const nuevaNovedad = {
+            // No generar firestoreDocId aquí, Firestore lo hará
+            cuadernoId: cuadernoIdManual, // Referencia al ID manual del cuaderno
+            usuarioId: currentUser.uid,
+            nombreUsuario: currentUser.nombreCompleto,
+            fecha: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }), 
+            hora: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }), 
+            turno: turno,
+            texto: texto,
+            calificacion: calificacion 
+        };
+
+        try {
+            const docRef = await db.collection(COLECCION_NOVEDADES).add(nuevaNovedad);
+            console.log("Nueva novedad guardada en Firestore con ID: ", docRef.id);
+            
+            // Actualizar array local para reflejar el cambio inmediatamente
+            novedades.push({ firestoreDocId: docRef.id, ...nuevaNovedad });
+            novedades.sort((a, b) => new Date(b.fecha.split('/').reverse().join('-') + 'T' + b.hora) - new Date(a.fecha.split('/').reverse().join('-') + 'T' + a.hora));
+
+
+            simularEnvioEmail(nuevaNovedad); 
+            cerrarFormularioNovedad();
+            
+            if (document.getElementById(VISTAS.OPERARIO_CUADERNO_DETALLE) && !document.getElementById(VISTAS.OPERARIO_CUADERNO_DETALLE).classList.contains('hidden-view')) {
+                if (cuadernoActualOperario && cuadernoActualOperario.id === cuadernoIdManual) {
+                     await renderizarNovedadesDeCuaderno(cuadernoIdManual); 
+                }
+            }
+            
+            if (document.getElementById(VISTAS.SUPERVISOR_DASHBOARD) && !document.getElementById(VISTAS.SUPERVISOR_DASHBOARD).classList.contains('hidden-view')) {
+                const fechaPickerFormateada = supervisorDatePicker.value.split('-').reverse().join('/'); 
+                if (nuevaNovedad.fecha === fechaPickerFormateada) { 
+                     await renderizarDashboardSupervisor();
+                }
+            }
+        } catch (error) {
+            console.error("Error guardando novedad en Firestore:", error);
+            novedadFormError.textContent = "Error al guardar novedad: " + error.message;
+        }
+    }
+    
+    // --- FUNCIONALIDAD DEL SUPERVISOR ---
+    // ... (renderizarSupervisorGestionNovedadesView, getCalificacionColorClass, getCalificacionAbreviatura, renderizarDashboardSupervisor, mostrarDetallesNovedadesParaSupervisor sin cambios significativos) ...
+    // ... (Solo asegurarse que usen los datos de los arrays globales que se cargan desde Firestore)
+
+    // --- FUNCIONALIDAD CHECKLIST ---
+    // ... (renderizarFormularioChecklist, handleGuardarChecklist, renderizarHistorialChecklists)
+    // ... (Estas funciones también necesitarán ser adaptadas para leer/escribir en Firestore)
+    // ... (y para usar el ID manual del cuaderno para filtrar/asociar)
+
+    // --- SIMULACIÓN DE EMAIL ---
+    // ... (simularEnvioEmail sin cambios, asume que 'cuadernos' está poblado) ...
+
+
+    // --- INICIALIZACIÓN Y EVENT LISTENERS ---
+    // ... (sin cambios) ...
+
+    // La llamada a mostrarVista(VISTAS.LOGIN) se maneja por onAuthStateChanged.
+    // Inicializar datos globales no se llama aquí, sino después de que el usuario se autentique.
+    
+    // --- CÓDIGO RESTANTE (FUNCIONES PLACEHOLDER Y LISTENERS) ---
+    // ... (Mantener el resto del código como estaba en la versión anterior, 
+    //      ya que este cambio se enfoca en la gestión de cuadernos y el login) ...
     function parseTareasDefinicion(textoTareas) {
         const lineas = textoTareas.split('\n').map(l => l.trim());
         const familias = [];
@@ -907,20 +1100,568 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return familias.filter(f => f.nombreFamilia && f.tareas.length > 0); 
     }
-    function renderizarDashboardOperario() { if(operarioCuadernosContainer) operarioCuadernosContainer.innerHTML = '<p>Funcionalidad de Operario en desarrollo con Firebase.</p>';}
-    async function mostrarDetalleCuadernoOperario(cuadernoFirestoreId, cuadernoNombre, vistaDeRetorno) { alert(`Mostrar Detalles para ${cuadernoNombre} con Firebase: Pendiente.`); if (vistaDeRetorno) mostrarVista(vistaDeRetorno);}
-    function renderizarNovedadesDeCuaderno(cuadernoFirestoreId) { /* ... */ }
-    function abrirFormularioNovedad(cuadernoFirestoreId, cuadernoNombre) { alert(`Abrir Form Novedad para ${cuadernoNombre} con Firebase: Pendiente.`);}
-    function cerrarFormularioNovedad() { if (formNovedadModal) formNovedadModal.style.display = 'none'; }
-    async function handleGuardarNovedad(event) { event.preventDefault(); alert("Guardar Novedad con Firebase: Pendiente."); }
-    function renderizarSupervisorGestionNovedadesView() { if(supervisorGestionCuadernosContainer) supervisorGestionCuadernosContainer.innerHTML = '<p>Gestión Supervisor en desarrollo con Firebase.</p>';}
-    async function renderizarDashboardSupervisor() { if(supervisorGridNovedadesBody) supervisorGridNovedadesBody.innerHTML = '<tr><td colspan="5">Tablero Supervisor con Firebase: Pendiente.</td></tr>';}
-    async function mostrarDetallesNovedadesParaSupervisor(cuadernoFirestoreId, cuadernoNombre, fecha, tipoCuaderno) { alert(`Mostrar Detalles Supervisor para ${cuadernoNombre} con Firebase: Pendiente.`);}
-    function renderizarFormularioChecklist(cuaderno) { if(listaTareasChecklist) listaTareasChecklist.innerHTML = '<p>Formulario Checklist con Firebase: Pendiente.</p>';}
-    async function handleGuardarChecklist(event) { event.preventDefault(); alert("Guardar Checklist con Firebase: Pendiente.");}
-    function renderizarHistorialChecklists(cuadernoFirestoreId) { if(historialChecklistsCuaderno) historialChecklistsCuaderno.innerHTML = '<p>Historial Checklist con Firebase: Pendiente.</p>';}
-    function simularEnvioEmail(entrada, tipoEntrada = 'novedad') { /* ... (mantenida, pero dependerá de 'cuadernos' cargado) ... */ }
+    function renderizarSupervisorGestionNovedadesView() { 
+        if (!supervisorGestionCuadernosContainer || !currentUser || currentUser.rol !== 'supervisor') {
+            if(supervisorGestionWelcomeMessage) supervisorGestionWelcomeMessage.textContent = 'Acceso denegado o no eres supervisor.';
+            if(supervisorGestionCuadernosContainer) supervisorGestionCuadernosContainer.innerHTML = '';
+            return;
+        }
+
+        if(supervisorGestionWelcomeMessage) supervisorGestionWelcomeMessage.textContent = `Bienvenido, ${currentUser.nombreCompleto}. Selecciona un cuaderno para gestionar sus novedades:`;
+        supervisorGestionCuadernosContainer.innerHTML = ''; 
+
+        if (cuadernos.length === 0) { // Usa el array 'cuadernos' global
+            supervisorGestionCuadernosContainer.innerHTML = '<p class="text-slate-600">No hay cuadernos configurados en el sistema.</p>';
+            return;
+        }
+
+        const grid = document.createElement('div');
+        grid.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'; 
+        
+        cuadernos.forEach(cuaderno => { 
+            const card = document.createElement('div');
+            const colorClasses = cuaderno.colorClase || COLORES_CUADERNO[0].clase; 
+            card.className = `p-5 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out cursor-pointer flex flex-col justify-between min-h-[150px] ${colorClasses}`;
+            
+            card.addEventListener('click', () => mostrarVista(VISTAS.OPERARIO_CUADERNO_DETALLE, {cuadernoId: cuaderno.firestoreDocId, cuadernoNombre: cuaderno.nombre, vistaRetorno: VISTAS.SUPERVISOR_GESTION_NOVEDADES}));
+            
+            const nombreCuaderno = document.createElement('h3');
+            nombreCuaderno.textContent = cuaderno.nombre;
+            const esColorOscuro = colorClasses.includes('text-white');
+            nombreCuaderno.className = `text-xl font-bold mb-3 ${esColorOscuro ? 'text-white' : 'text-slate-800'}`;
+            card.appendChild(nombreCuaderno);
+
+            const verNovedadesText = document.createElement('p');
+            verNovedadesText.textContent = 'Ver/Registrar Novedades \u2192'; 
+            verNovedadesText.className = `text-sm font-semibold self-start mt-auto ${esColorOscuro ? 'hover:text-slate-200' : 'hover:text-sky-700'}`;
+            card.appendChild(verNovedadesText);
+            
+            grid.appendChild(card);
+        });
+        supervisorGestionCuadernosContainer.appendChild(grid);
+    }
     
+    function getCalificacionColorClass(calificacion, tipo = 'cell', tipoEntrada = 'novedad') { 
+        let baseClass = tipo === 'cell' ? 'calificacion-cell-sm ' : 'px-2 py-0.5 text-xs font-medium rounded-full ';
+        
+        if (calificacion === CALIFICACIONES_UNIFICADAS.TODO_REALIZADO) return baseClass + 'bg-green-500 text-white';
+        if (calificacion === CALIFICACIONES_UNIFICADAS.CON_TAREAS_PENDIENTES) return baseClass + 'bg-red-500 text-white';
+        
+        switch (calificacion) {
+            case 'Malo': return baseClass + 'bg-red-500 text-white'; 
+            case 'Regular': return baseClass + 'bg-yellow-400 text-black'; 
+            case 'Bueno': return baseClass + 'bg-green-500 text-white'; 
+            case 'Muy Bueno': return baseClass + 'bg-sky-500 text-white'; 
+            default: return baseClass + 'bg-slate-300 text-slate-700'; 
+        }
+    }
+    
+    function getCalificacionAbreviatura(calificacion, tipoEntrada = 'novedad') {
+        if (calificacion === CALIFICACIONES_UNIFICADAS.TODO_REALIZADO) return 'TR';
+        if (calificacion === CALIFICACIONES_UNIFICADAS.CON_TAREAS_PENDIENTES) return 'TP';
+        
+        switch (calificacion) {
+            case 'Malo': return 'M';
+            case 'Regular': return 'R';
+            case 'Bueno': return 'B';
+            case 'Muy Bueno': return 'MB';
+            default: return 'S/C'; 
+        }
+    }
+
+    async function renderizarDashboardSupervisor() { 
+        if (!supervisorGridNovedadesBody || !supervisorDatePicker) return;
+
+        const fechaSeleccionada = supervisorDatePicker.value; 
+        if (!fechaSeleccionada) {
+            supervisorGridNovedadesBody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-500">Por favor, seleccione una fecha.</td></tr>';
+            return;
+        }
+        
+        const [year, month, day] = fechaSeleccionada.split('-');
+        const fechaFormateadaParaComparar = `${day.padStart(2,'0')}/${month.padStart(2,'0')}/${year}`;
+
+
+        supervisorGridNovedadesBody.innerHTML = ''; 
+        let cuadernosConNovedadesHoy = 0;
+        let totalNovedadesHoy = 0; 
+
+        // Asegurar que cuadernos, novedades y checklistEntradas estén cargados
+        if (cuadernos.length === 0 || novedades.length === 0 && checklistEntradas.length === 0) {
+            await cargarDatosGlobales();
+        }
+
+        cuadernos.forEach(cuaderno => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-slate-50 transition-colors';
+
+            let tieneEntradaEsteCuadernoHoy = false;
+            let celdaCuaderno = `<td class="py-2 px-3 border-b border-slate-200 text-sm font-medium text-slate-700">${cuaderno.nombre} <span class="text-xs text-slate-500">(${cuaderno.tipo === 'checklist' ? 'Checklist' : 'Novedades'})</span></td>`;
+            let celdasTurnos = '';
+
+            TURNOS_LAB.forEach(turno => {
+                let ultimaEntradaDelTurno = null;
+                let calificacionParaMostrar = null;
+                let entradasDelTurno = [];
+
+                if (cuaderno.tipo === 'checklist') {
+                    entradasDelTurno = checklistEntradas.filter(ce => 
+                        ce.cuadernoId === cuaderno.id && // Comparar con el ID manual del cuaderno
+                        ce.fecha === fechaFormateadaParaComparar &&
+                        ce.turno === turno
+                    );
+                } else { 
+                    entradasDelTurno = novedades.filter(n => 
+                        n.cuadernoId === cuaderno.id && // Comparar con el ID manual del cuaderno
+                        n.fecha === fechaFormateadaParaComparar &&
+                        n.turno === turno
+                    );
+                }
+                
+                if (entradasDelTurno.length > 0) {
+                    tieneEntradaEsteCuadernoHoy = true;
+                    totalNovedadesHoy += entradasDelTurno.length; 
+                    ultimaEntradaDelTurno = entradasDelTurno.sort((a,b) => new Date('1970/01/01 ' + b.hora) - new Date('1970/01/01 ' + a.hora))[0];
+                    calificacionParaMostrar = ultimaEntradaDelTurno.calificacion;
+                }
+                
+                const contenidoCeldaTurno = `<span class="calificacion-cell-sm ${getCalificacionColorClass(calificacionParaMostrar, 'cell', cuaderno.tipo)}">${getCalificacionAbreviatura(calificacionParaMostrar, cuaderno.tipo)}</span>`; 
+                celdasTurnos += `<td class="py-2 px-3 border-b border-slate-200 text-center">${contenidoCeldaTurno}</td>`;
+            });
+
+            if (tieneEntradaEsteCuadernoHoy) {
+                cuadernosConNovedadesHoy++;
+            }
+
+            const celdaDetalles = `
+                <td class="py-2 px-3 border-b border-slate-200 text-center">
+                    <button data-cuaderno-id="${cuaderno.firestoreDocId}" data-cuaderno-nombre="${cuaderno.nombre}" data-cuaderno-tipo="${cuaderno.tipo}" data-fecha="${fechaFormateadaParaComparar}" 
+                            class="ver-detalles-supervisor-btn text-sky-600 hover:text-sky-800" title="Ver detalles del día">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 inline-block">
+                          <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </td>`;
+            
+            tr.innerHTML = celdaCuaderno + celdasTurnos + celdaDetalles;
+            supervisorGridNovedadesBody.appendChild(tr);
+        });
+
+        if (cuadernos.length === 0) {
+             supervisorGridNovedadesBody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-500">No hay cuadernos configurados.</td></tr>';
+        } else if (supervisorGridNovedadesBody.innerHTML === '' && cuadernos.length > 0) { 
+             supervisorGridNovedadesBody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-500">No hay novedades para la fecha ${fechaFormateadaParaComparar}.</td></tr>`;
+        }
+
+        if (totalCuadernosConNovedadesSpan) totalCuadernosConNovedadesSpan.textContent = cuadernosConNovedadesHoy;
+        if (totalCuadernosSinNovedadesSpan) totalCuadernosSinNovedadesSpan.textContent = cuadernos.length - cuadernosConNovedadesHoy;
+        if (totalNovedadesRegistradasSpan) totalNovedadesRegistradasSpan.textContent = totalNovedadesHoy;
+    }
+
+    async function mostrarDetallesNovedadesParaSupervisor(cuadernoFirestoreId, cuadernoNombre, fecha, tipoCuaderno) {
+        if (!detalleNovedadesModal || !detalleNovedadesContent || !detalleNovedadesTitle) return;
+
+        const cuaderno = cuadernos.find(c => c.firestoreDocId === cuadernoFirestoreId);
+        if (!cuaderno) {
+            console.error("mostrarDetallesNovedadesParaSupervisor: Cuaderno no encontrado en array local", cuadernoFirestoreId);
+            detalleNovedadesContent.innerHTML = '<p class="text-red-500">Error: Cuaderno no encontrado.</p>';
+            detalleNovedadesModal.style.display = 'flex';
+            return;
+        }
+        const cuadernoIdManual = cuaderno.id; // Usar el ID manual para filtrar novedades/checklists
+
+        detalleNovedadesTitle.textContent = `Detalles de "${cuadernoNombre}" (${tipoCuaderno === 'checklist' ? 'Checklist' : 'Novedades'}) - Fecha: ${fecha}`;
+        detalleNovedadesContent.innerHTML = ''; 
+
+        let entradasDelDia = [];
+        if (tipoCuaderno === 'checklist') {
+            entradasDelDia = checklistEntradas
+                .filter(n => n.cuadernoId === cuadernoIdManual && n.fecha === fecha)
+                .sort((a, b) => { 
+                    const turnoAIndex = TURNOS_LAB.indexOf(a.turno);
+                    const turnoBIndex = TURNOS_LAB.indexOf(b.turno);
+                    if (turnoAIndex !== turnoBIndex) return turnoAIndex - turnoBIndex;
+                    return new Date('1970/01/01 ' + a.hora) - new Date('1970/01/01 ' + b.hora); 
+                });
+        } else { 
+            entradasDelDia = novedades
+                .filter(n => n.cuadernoId === cuadernoIdManual && n.fecha === fecha)
+                .sort((a, b) => { 
+                    const turnoAIndex = TURNOS_LAB.indexOf(a.turno);
+                    const turnoBIndex = TURNOS_LAB.indexOf(b.turno);
+                    if (turnoAIndex !== turnoBIndex) return turnoAIndex - turnoBIndex;
+                    const horaA = parseInt(a.hora.split(':')[0]) * 60 + parseInt(a.hora.split(':')[1]);
+                    const horaB = parseInt(b.hora.split(':')[0]) * 60 + parseInt(b.hora.split(':')[1]);
+                    return horaA - horaB; 
+                });
+        }
+
+
+        if (entradasDelDia.length === 0) {
+            detalleNovedadesContent.innerHTML = `<p class="text-slate-500 p-4 text-center">No hay ${tipoCuaderno === 'checklist' ? 'checklists completados' : 'novedades registradas'} para este cuaderno en la fecha seleccionada.</p>`;
+        } else {
+            entradasDelDia.forEach(entrada => {
+                const card = document.createElement('div');
+                let califParaBorde = entrada.calificacion;
+                if (tipoCuaderno === 'checklist') { 
+                    califParaBorde = entrada.calificacion === CALIFICACIONES_UNIFICADAS.TODO_REALIZADO ? 'Todo-realizado' : 'Con-tareas-pendientes';
+                } else { 
+                     califParaBorde = entrada.calificacion === CALIFICACIONES_UNIFICADAS.TODO_REALIZADO ? 'Todo-realizado' : 'Con-tareas-pendientes';
+                }
+                const calificacionBordeClass = `calificacion-${califParaBorde.replace(/\s+/g, '-')}`; 
+                card.className = `novedad-card bg-white p-4 rounded-lg shadow-sm mb-3 ${calificacionBordeClass}`;
+                
+                let contenidoEntradaHtml = '';
+                if (tipoCuaderno === 'checklist') {
+                    const tareasAgrupadas = (entrada.tareas || []).reduce((acc, tarea) => {
+                        const familia = tarea.familiaNombre || "Tareas Generales";
+                        if (!acc[familia]) {
+                            acc[familia] = [];
+                        }
+                        acc[familia].push(tarea);
+                        return acc;
+                    }, {});
+
+                    for (const nombreFamilia in tareasAgrupadas) {
+                        contenidoEntradaHtml += `<h5 class="text-sm font-semibold text-sky-700 mt-2 mb-1">${nombreFamilia}</h5>`;
+                        contenidoEntradaHtml += '<table class="min-w-full text-sm">';
+                        contenidoEntradaHtml += `<thead class="bg-slate-50"><tr>
+                                                    <th class="w-2/5 px-2 py-1 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Tarea</th>
+                                                    <th class="w-1/4 px-2 py-1 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Estado</th>
+                                                    <th class="w-2/5 px-2 py-1 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Observación</th>
+                                                 </tr></thead>`;
+                        contenidoEntradaHtml += '<tbody class="bg-white divide-y divide-slate-200">';
+                        tareasAgrupadas[nombreFamilia].forEach(t => {
+                            let estadoColorClass = 'text-slate-600';
+                            if (t.estado === 'Realizado') estadoColorClass = 'text-green-600 font-semibold';
+                            else if (t.estado === 'En Proceso') estadoColorClass = 'text-yellow-600 font-semibold';
+                            else if (t.estado === 'Pendiente') estadoColorClass = 'text-red-600 font-semibold';
+                            else if (t.estado === 'No corresponde') estadoColorClass = 'text-gray-500 font-medium';
+                            contenidoEntradaHtml += `<tr>
+                                                        <td class="px-2 py-1 whitespace-normal">${t.texto}</td>
+                                                        <td class="px-2 py-1 whitespace-nowrap"><span class="${estadoColorClass}">${t.estado}</span></td>
+                                                        <td class="px-2 py-1 whitespace-normal">${t.observacionTarea || ''}</td>
+                                                     </tr>`;
+                        });
+                        contenidoEntradaHtml += '</tbody></table>';
+                    }
+
+                    if (entrada.observaciones) { 
+                        contenidoEntradaHtml += `<div class="mt-2 pt-2 border-t border-slate-200">
+                                                    <p class="text-xs font-semibold text-slate-600 mb-1">Observaciones Generales:</p>
+                                                    <p class="text-sm text-slate-700 whitespace-pre-wrap">${entrada.observaciones}</p>
+                                                 </div>`;
+                    }
+                } else {
+                    contenidoEntradaHtml = `<p class="text-sm text-slate-700 whitespace-pre-wrap">${entrada.texto}</p>`;
+                }
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <span class="text-xs font-semibold text-slate-600">${entrada.fecha} - ${entrada.hora} - Turno: ${entrada.turno}</span>
+                        <span class="px-2 py-0.5 text-xs font-medium rounded-full ${getCalificacionColorClass(entrada.calificacion, 'text', tipoCuaderno)}">
+                            ${entrada.calificacion}
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-1 mb-2">Reportado por: ${entrada.nombreUsuario}</p>
+                    ${contenidoEntradaHtml}
+                `;
+                detalleNovedadesContent.appendChild(card);
+            });
+        }
+        detalleNovedadesModal.style.display = 'flex';
+    }
+
+    // --- FUNCIONALIDAD CHECKLIST ---
+    function renderizarFormularioChecklist(cuaderno) {
+        if (!listaTareasChecklist || !checklistCuadernoIdInput || !formChecklist) return;
+        
+        listaTareasChecklist.innerHTML = ''; 
+        checklistCuadernoIdInput.value = cuaderno.id; // Usar el ID manual del cuaderno
+        formChecklist.reset(); 
+        if(checklistObservacionesTextarea) checklistObservacionesTextarea.value = ''; 
+
+        if (!cuaderno.tareasDefinicion || cuaderno.tareasDefinicion.length === 0) {
+            listaTareasChecklist.innerHTML = '<p class="text-slate-500">No hay tareas definidas para este checklist.</p>';
+            return;
+        }
+
+        const table = document.createElement('table');
+        table.className = 'min-w-full divide-y divide-slate-200 mb-4';
+        const thead = document.createElement('thead');
+        thead.className = 'bg-slate-50';
+        thead.innerHTML = `
+            <tr>
+                <th scope="col" class="w-2/5 px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Tarea</th>
+                <th scope="col" class="w-1/4 px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Estado</th>
+                <th scope="col" class="w-2/5 px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Observación Tarea</th>
+            </tr>
+        `;
+        table.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        tbody.className = 'bg-white divide-y divide-slate-200';
+
+        cuaderno.tareasDefinicion.forEach(familia => {
+            const familiaTr = document.createElement('tr');
+            familiaTr.className = 'bg-sky-50'; 
+            const familiaTd = document.createElement('td');
+            familiaTd.colSpan = 3; 
+            familiaTd.className = 'px-4 py-2 text-sm font-semibold text-sky-700';
+            familiaTd.textContent = familia.nombreFamilia;
+            familiaTr.appendChild(familiaTd);
+            tbody.appendChild(familiaTr);
+
+            (familia.tareas || []).forEach((tareaTexto) => {
+                const tr = document.createElement('tr');
+                tr.dataset.tareaTexto = tareaTexto; 
+                tr.dataset.familiaNombre = familia.nombreFamilia; 
+
+                const tdTarea = document.createElement('td');
+                tdTarea.className = 'px-4 py-2 whitespace-normal text-sm text-slate-700'; 
+                tdTarea.textContent = tareaTexto;
+                tr.appendChild(tdTarea);
+
+                const tdEstado = document.createElement('td');
+                tdEstado.className = 'px-4 py-2 whitespace-nowrap text-sm';
+                const selectEstado = document.createElement('select');
+                selectEstado.className = 'w-full p-1 border border-slate-300 rounded-md focus:ring-sky-500 focus:border-sky-500 text-xs';
+                ESTADOS_TAREA_CHECKLIST.forEach(estado => {
+                    const option = document.createElement('option');
+                    option.value = estado;
+                    option.textContent = estado;
+                    selectEstado.appendChild(option);
+                });
+                
+                selectEstado.addEventListener('change', (e) => {
+                    const obsInput = e.target.closest('tr').querySelector('input[type="text"]');
+                    if (e.target.value === 'En Proceso') {
+                        obsInput.placeholder = 'Observación (obligatorio)';
+                        obsInput.classList.add('border-red-300', 'focus:border-red-500', 'focus:ring-red-500');
+                        obsInput.classList.remove('border-slate-300');
+                    } else {
+                        obsInput.placeholder = 'Observación (opcional)';
+                        obsInput.classList.remove('border-red-300', 'focus:border-red-500', 'focus:ring-red-500');
+                        obsInput.classList.add('border-slate-300');
+                    }
+                });
+                tdEstado.appendChild(selectEstado);
+                tr.appendChild(tdEstado);
+
+                const tdObservacion = document.createElement('td');
+                tdObservacion.className = 'px-4 py-2 whitespace-nowrap text-sm';
+                const inputObs = document.createElement('input'); 
+                inputObs.type = 'text';
+                inputObs.className = 'w-full p-1 border border-slate-300 rounded-md focus:ring-sky-500 focus:border-sky-500 text-xs';
+                inputObs.placeholder = 'Observación (opcional)';
+                tdObservacion.appendChild(inputObs);
+                tr.appendChild(tdObservacion);
+                
+                tbody.appendChild(tr);
+            });
+        });
+        table.appendChild(tbody);
+        listaTareasChecklist.appendChild(table);
+    }
+
+    async function handleGuardarChecklist(event) { 
+        event.preventDefault();
+        if (!checklistFormError || !checklistTurnoSelect || !checklistCalificacionSelect || !listaTareasChecklist || !checklistCuadernoIdInput || !checklistObservacionesTextarea) return;
+        
+        checklistFormError.textContent = '';
+        const cuadernoIdManual = checklistCuadernoIdInput.value; // Este es el ID manual del cuaderno
+        const turno = checklistTurnoSelect.value;
+        const calificacion = checklistCalificacionSelect.value; 
+        const observacionesGlobales = checklistObservacionesTextarea.value.trim(); 
+
+        if (!cuadernoIdManual || !turno || !calificacion) {
+            checklistFormError.textContent = 'Debe seleccionar un turno y una calificación general.';
+            return;
+        }
+
+        const tareasCompletadas = [];
+        const filasTareas = listaTareasChecklist.querySelectorAll('tbody tr:not(.bg-sky-50)'); 
+        let hayErrorEnTarea = false;
+
+        filasTareas.forEach(fila => {
+            if (hayErrorEnTarea) return; 
+
+            const textoTarea = fila.dataset.tareaTexto; 
+            const familiaNombre = fila.dataset.familiaNombre; 
+            const selectEstado = fila.querySelector('select');
+            const inputObservacion = fila.querySelector('input[type="text"]');
+            const estadoTarea = selectEstado.value;
+            const observacionTarea = inputObservacion.value.trim();
+
+            if (estadoTarea === 'En Proceso' && !observacionTarea) {
+                checklistFormError.textContent = `La tarea "${textoTarea}" en la familia "${familiaNombre}" está "En Proceso" y requiere una observación.`;
+                hayErrorEnTarea = true;
+                inputObservacion.focus(); 
+                inputObservacion.classList.add('border-red-500'); 
+                return;
+            } else {
+                inputObservacion.classList.remove('border-red-500'); 
+            }
+            
+            tareasCompletadas.push({
+                familiaNombre: familiaNombre, 
+                texto: textoTarea,
+                estado: estadoTarea,
+                observacionTarea: observacionTarea
+            });
+        });
+
+        if (hayErrorEnTarea) {
+            return; 
+        }
+
+
+        if (tareasCompletadas.length === 0) {
+            const cuaderno = cuadernos.find(c => c.id === cuadernoIdManual);
+            if (!cuaderno || !cuaderno.tareasDefinicion || cuaderno.tareasDefinicion.length === 0) {
+                 checklistFormError.textContent = 'Este checklist no tiene tareas definidas. No se puede guardar.';
+                 return;
+            }
+        }
+        
+        const nuevaEntradaChecklist = {
+            // Firestore generará el ID del documento
+            cuadernoId: cuadernoIdManual, // Referencia al ID manual del cuaderno
+            usuarioId: currentUser.uid,
+            nombreUsuario: currentUser.nombreCompleto,
+            fecha: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+            hora: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+            turno: turno,
+            calificacion: calificacion,
+            tareas: tareasCompletadas,
+            observaciones: observacionesGlobales 
+        };
+
+        try {
+            const docRef = await db.collection(COLECCION_CHECKLISTS).add(nuevaEntradaChecklist);
+            console.log("Nueva entrada de checklist guardada en Firestore con ID: ", docRef.id);
+            
+            // Actualizar array local
+            checklistEntradas.push({ firestoreDocId: docRef.id, ...nuevaEntradaChecklist });
+            checklistEntradas.sort((a,b) => new Date(b.fecha.split('/').reverse().join('-') + 'T' + b.hora) - new Date(a.fecha.split('/').reverse().join('-') + 'T' + a.hora));
+
+
+            simularEnvioEmail(nuevaEntradaChecklist, 'checklist');
+            
+            if(checklistObservacionesTextarea) checklistObservacionesTextarea.value = ''; 
+            if(checklistFormError) checklistFormError.textContent = '';
+            
+            filasTareas.forEach(fila => {
+                fila.querySelector('select').value = ESTADOS_TAREA_CHECKLIST[0]; 
+                fila.querySelector('input[type="text"]').value = '';
+                fila.querySelector('input[type="text"]').placeholder = 'Observación (opcional)'; 
+                fila.querySelector('input[type="text"]').classList.remove('border-red-300', 'focus:border-red-500', 'focus:ring-red-500');
+                fila.querySelector('input[type="text"]').classList.add('border-slate-300');
+            });
+
+            await renderizarHistorialChecklists(cuadernoIdManual);
+
+            if (document.getElementById(VISTAS.SUPERVISOR_DASHBOARD) && !document.getElementById(VISTAS.SUPERVISOR_DASHBOARD).classList.contains('hidden-view')) {
+                const fechaPickerFormateada = supervisorDatePicker.value.split('-').reverse().join('/');
+                if (nuevaEntradaChecklist.fecha === fechaPickerFormateada) {
+                    await renderizarDashboardSupervisor();
+                }
+            }
+        } catch (error) {
+            console.error("Error guardando checklist en Firestore:", error);
+            checklistFormError.textContent = "Error al guardar checklist: " + error.message;
+        }
+    }
+
+    async function renderizarHistorialChecklists(cuadernoIdManual) { // Recibe ID manual
+        if (!historialChecklistsCuaderno) return;
+        historialChecklistsCuaderno.innerHTML = '<p class="text-slate-500 p-4 text-center">Cargando historial...</p>';
+
+        try {
+            // 'checklistEntradas' ya está cargado globalmente
+            const entradasDelCuaderno = checklistEntradas
+                .filter(ce => ce.cuadernoId === cuadernoIdManual)
+                .sort((a, b) => {
+                    const dateA = new Date(a.fecha.split('/').reverse().join('-') + 'T' + a.hora);
+                    const dateB = new Date(b.fecha.split('/').reverse().join('-') + 'T' + b.hora);
+                    return dateB - dateA; 
+                });
+
+            historialChecklistsCuaderno.innerHTML = '';
+            if (entradasDelCuaderno.length === 0) {
+                historialChecklistsCuaderno.innerHTML = '<p class="text-slate-500 p-4 text-center">No hay checklists guardados para este cuaderno.</p>';
+                return;
+            }
+
+            entradasDelCuaderno.forEach(entrada => {
+                const card = document.createElement('div');
+                const calificacionBorde = entrada.calificacion === CALIFICACIONES_UNIFICADAS.TODO_REALIZADO ? 'Todo-realizado' : 'Con-tareas-pendientes';
+                const calificacionClass = `calificacion-${calificacionBorde.replace(/\s+/g, '-')}`;
+                card.className = `novedad-card bg-white p-4 rounded-lg shadow-sm mb-3 ${calificacionClass}`;
+                
+                const tareasAgrupadas = (entrada.tareas || []).reduce((acc, tarea) => {
+                    const familia = tarea.familiaNombre || "Tareas Generales";
+                    if (!acc[familia]) {
+                        acc[familia] = [];
+                    }
+                    acc[familia].push(tarea);
+                    return acc;
+                }, {});
+
+                let familiasHtml = '<div class="overflow-x-auto">'; 
+                familiasHtml += '<table class="min-w-full text-sm mt-2">'; 
+                familiasHtml += `<thead class="bg-slate-50"><tr>
+                                   <th class="w-2/5 px-2 py-1 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Tarea</th>
+                                   <th class="w-1/4 px-2 py-1 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Estado</th>
+                                   <th class="w-2/5 px-2 py-1 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Observación</th>
+                               </tr></thead>`;
+                familiasHtml += '<tbody class="bg-white divide-y divide-slate-200">';
+
+                for (const nombreFamilia in tareasAgrupadas) {
+                    familiasHtml += `<tr><td colspan="3" class="bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-700">${nombreFamilia}</td></tr>`;
+                    
+                    tareasAgrupadas[nombreFamilia].forEach(t => {
+                        let estadoColorClass = 'text-slate-600';
+                        if (t.estado === 'Realizado') estadoColorClass = 'text-green-600 font-semibold';
+                        else if (t.estado === 'En Proceso') estadoColorClass = 'text-yellow-600 font-semibold';
+                        else if (t.estado === 'Pendiente') estadoColorClass = 'text-red-600 font-semibold';
+                        else if (t.estado === 'No corresponde') estadoColorClass = 'text-gray-500 font-medium'; 
+                        
+                        familiasHtml += `<tr>
+                                         <td class="px-2 py-1 whitespace-normal">${t.texto}</td>
+                                         <td class="px-2 py-1 whitespace-nowrap"><span class="${estadoColorClass}">${t.estado}</span></td>
+                                         <td class="px-2 py-1 whitespace-normal">${t.observacionTarea || ''}</td>
+                                       </tr>`;
+                    });
+                }
+                familiasHtml += '</tbody></table></div>';
+
+
+                let observacionesHtml = '';
+                if (entrada.observaciones) {
+                    observacionesHtml = `<div class="mt-3 pt-2 border-t border-slate-200">
+                                            <p class="text-xs font-semibold text-slate-600 mb-1">Observaciones Generales:</p>
+                                            <p class="text-sm text-slate-700 whitespace-pre-wrap">${entrada.observaciones}</p>
+                                         </div>`;
+                }
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <span class="text-xs font-semibold text-slate-600">${entrada.fecha} - ${entrada.hora} - Turno: ${entrada.turno}</span>
+                        <span class="px-2 py-0.5 text-xs font-medium rounded-full ${getCalificacionColorClass(entrada.calificacion, 'text', 'checklist')}">
+                            ${entrada.calificacion}
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-1 mb-2">Reportado por: ${entrada.nombreUsuario}</p>
+                    ${familiasHtml}
+                    ${observacionesHtml}
+                `;
+                historialChecklistsCuaderno.appendChild(card);
+            });
+        } catch (error) {
+            console.error("Error renderizando historial de checklists:", error);
+            historialChecklistsCuaderno.innerHTML = '<p class="text-red-500 p-4 text-center">Error al cargar historial.</p>';
+        }
+    }
 
 
     // --- INICIALIZACIÓN Y EVENT LISTENERS ---
@@ -966,9 +1707,57 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Listeners para modales y otras funcionalidades se mantendrán o adaptarán
+    if (formNovedad) formNovedad.addEventListener('submit', handleGuardarNovedad);
     if (closeFormNovedadModalBtnNovedad) closeFormNovedadModalBtnNovedad.addEventListener('click', cerrarFormularioNovedad);
     if (cancelNovedadBtn) cancelNovedadBtn.addEventListener('click', cerrarFormularioNovedad);
+    
+    if (btnVolverADashboardUsuario) { 
+        btnVolverADashboardUsuario.addEventListener('click', () => {
+            if (vistaAnteriorParaDetalleCuaderno) {
+                mostrarVista(vistaAnteriorParaDetalleCuaderno);
+            } else if (currentUser.rol === 'operario') {
+                mostrarVista(VISTAS.OPERARIO_DASHBOARD);
+            } else if (currentUser.rol === 'supervisor') {
+                mostrarVista(VISTAS.SUPERVISOR_GESTION_NOVEDADES); 
+            } else {
+                 mostrarVista(VISTAS.LOGIN); 
+            }
+            cuadernoActualOperario = null; 
+            vistaAnteriorParaDetalleCuaderno = null;
+        });
+    }
+    if (btnAbrirFormNovedadDesdeDetalle) {
+        btnAbrirFormNovedadDesdeDetalle.addEventListener('click', () => {
+            if (cuadernoActualOperario) {
+                abrirFormularioNovedad(cuadernoActualOperario.id, cuadernoActualOperario.nombre);
+            } else {
+                console.error("No hay un cuaderno actual seleccionado para agregar novedad.");
+                if (vistaAnteriorParaDetalleCuaderno) {
+                     mostrarVista(vistaAnteriorParaDetalleCuaderno);
+                } else if (currentUser && currentUser.rol === 'operario') {
+                    mostrarVista(VISTAS.OPERARIO_DASHBOARD);
+                } else if (currentUser && currentUser.rol === 'supervisor') {
+                     mostrarVista(VISTAS.SUPERVISOR_GESTION_NOVEDADES);
+                }
+            }
+        });
+    }
+
+    if (supervisorDatePicker) {
+        supervisorDatePicker.addEventListener('change', renderizarDashboardSupervisor);
+    }
+    if (supervisorGridNovedadesBody) {
+        supervisorGridNovedadesBody.addEventListener('click', (event) => {
+            const target = event.target.closest('.ver-detalles-supervisor-btn');
+            if (target) {
+                const cuadernoId = target.dataset.cuadernoId; // Este es el firestoreDocId
+                const cuadernoNombre = target.dataset.cuadernoNombre;
+                const fecha = target.dataset.fecha;
+                const tipoCuaderno = target.dataset.cuadernoTipo; 
+                mostrarDetallesNovedadesParaSupervisor(cuadernoId, cuadernoNombre, fecha, tipoCuaderno);
+            }
+        });
+    }
     if(closeDetalleNovedadesModalBtn) {
         closeDetalleNovedadesModalBtn.addEventListener('click', () => {
             if(detalleNovedadesModal) detalleNovedadesModal.style.display = 'none';
@@ -983,6 +1772,10 @@ document.addEventListener('DOMContentLoaded', () => {
         okEmailSimulacionModalBtn.addEventListener('click', () => {
             if(emailSimulacionModal) emailSimulacionModal.style.display = 'none';
         });
+    }
+
+    if (formChecklist) {
+        formChecklist.addEventListener('submit', handleGuardarChecklist);
     }
     
 });
