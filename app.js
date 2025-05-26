@@ -185,6 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 cuadernos = snapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
             }
 
+            // Simplificar query para evitar error de índice, ordenar en cliente si es necesario después
             const novedadesSnapshot = await db.collection(COLECCION_NOVEDADES).orderBy("fecha", "desc").get();
             novedades = novedadesSnapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
 
@@ -350,7 +351,9 @@ document.addEventListener('DOMContentLoaded', () => {
             adminCredentials = { email: emailInput, password: passwordInput };
 
             await auth.signInWithEmailAndPassword(emailInput, passwordInput);
-            // loginForm.reset(); // No resetear aquí, onAuthStateChanged se encarga de la UI
+            // onAuthStateChanged se encargará de la redirección y carga de datos.
+            // No resetear adminCredentials aquí, se usará si el admin crea un usuario.
+            // loginForm.reset(); // No resetear aquí, esperar a onAuthStateChanged
         } catch (error) {
             console.error("Error de inicio de sesión:", error.code, error.message);
             let friendlyMessage = "Email o contraseña incorrectos.";
@@ -490,7 +493,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log("Administrador re-autenticado.");
                 } else {
                     console.warn("No se pudieron obtener las credenciales del admin para re-autenticar. El admin podría necesitar re-loguearse.");
-                    // No forzar logout aquí, onAuthStateChanged debería manejar el estado del nuevo usuario si el re-login del admin falla.
                 }
             }
             await renderizarTablaUsuarios(); 
@@ -504,14 +506,12 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 usuarioFormError.textContent = 'Error al guardar usuario: ' + error.message;
             }
-            // Si hubo un error creando el usuario en Auth, y el admin se deslogueó (porque createUserWithEmailAndPassword loguea al nuevo), re-loguear admin
-            if (auth.currentUser && auth.currentUser.email !== adminEmailActual && adminEmailActual && adminPasswordActual) {
+            if (auth.currentUser && adminEmailActual && adminPasswordActual && auth.currentUser.email !== adminEmailActual) {
                 try {
-                    console.log("Intentando re-loguear admin después de fallo...");
+                    console.log("Intentando re-loguear admin después de fallo en creación de usuario...");
                     await auth.signInWithEmailAndPassword(adminEmailActual, adminPasswordActual);
                 } catch (reloginError) {
                     console.error("Error re-logueando admin después de fallo en creación de usuario:", reloginError);
-                    // Si falla el re-login del admin, es mejor desloguear todo para evitar inconsistencias.
                     await auth.signOut(); 
                 }
             }
@@ -615,6 +615,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cuadernoEmailsTodoRealizadoInput.value = cuadernoParaEditar ? (cuadernoParaEditar.emailsTodoRealizado || '') : '';
             cuadernoEmailsConPendientesInput.value = cuadernoParaEditar ? (cuadernoParaEditar.emailsConPendientes || '') : '';
 
+            // Asegurar que 'usuarios' esté cargado antes de popular el selector
             if (usuarios.length === 0 && currentUser && currentUser.rol === 'admin') { 
                 const usuariosSnapshot = await db.collection(COLECCION_USUARIOS).get();
                 usuarios = usuariosSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
@@ -644,7 +645,8 @@ document.addEventListener('DOMContentLoaded', () => {
         tablaCuadernosBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center">Cargando cuadernos...</td></tr>';
         
         try {
-            // Asegurar que los cuadernos estén cargados desde cargarDatosGlobales
+            // 'cuadernos' ya debería estar cargado por cargarDatosGlobales()
+            // Si no, recargar aquí (aunque cargarDatosGlobales se llama en onAuthStateChanged):
             if (cuadernos.length === 0 && currentUser) { 
                  await cargarDatosGlobales(); // Esto ya carga 'cuadernos'
             }
@@ -656,8 +658,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Asegurar que 'usuarios' esté poblado para mostrar nombres asignados
-            // (ya debería estar cargado si el admin está viendo esta tabla,
-            // pero una comprobación extra no hace daño)
             if (usuarios.length === 0 && currentUser && currentUser.rol === 'admin') {
                 const usuariosSnapshot = await db.collection(COLECCION_USUARIOS).get();
                 usuarios = usuariosSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
