@@ -185,6 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 cuadernos = snapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
             }
 
+            // Simplificar query para evitar error de índice, ordenar en cliente si es necesario después
             const novedadesSnapshot = await db.collection(COLECCION_NOVEDADES).orderBy("fecha", "desc").get();
             novedades = novedadesSnapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
 
@@ -195,6 +196,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error("Error cargando datos globales desde Firestore: ", error);
+             if (error.code === 'failed-precondition') {
+                alert("Error de Firestore: La consulta requiere un índice que no existe. Por favor, crea el índice en la consola de Firebase como se indica en los logs del navegador, o contacta al desarrollador para simplificar la consulta.");
+            }
         }
     }
 
@@ -307,7 +311,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Guardar las credenciales del admin actual si es un admin y si se usó el formulario de login
-            if (currentUser.rol === 'admin' && loginForm.elements.loginEmail.value && loginForm.elements.loginPassword.value) {
+            // Esto es para el re-login después de crear un usuario.
+            if (currentUser.rol === 'admin' && loginForm.elements.loginEmail.value && loginForm.elements.loginPassword.value && !adminCredentials) {
                  adminCredentials = { email: loginForm.elements.loginEmail.value, password: loginForm.elements.loginPassword.value };
                  console.log("Credenciales de admin capturadas para re-login.");
             }
@@ -351,7 +356,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await auth.signInWithEmailAndPassword(emailInput, passwordInput);
             // onAuthStateChanged se encargará de la redirección y carga de datos.
             // No limpiar adminCredentials aquí, se usará si el admin crea un usuario.
-            loginForm.reset(); 
+            // loginForm.reset(); // No resetear aquí, esperar a onAuthStateChanged
         } catch (error) {
             console.error("Error de inicio de sesión:", error.code, error.message);
             let friendlyMessage = "Email o contraseña incorrectos.";
@@ -368,6 +373,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleLogout() {
         try {
             await auth.signOut();
+            loginForm.reset(); // Resetear el formulario de login al cerrar sesión
         } catch (error) {
             console.error("Error al cerrar sesión:", error);
         }
@@ -484,17 +490,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 console.log("Información adicional del usuario guardada en Firestore");
 
+                // Re-autenticar al administrador
                 if (adminEmailActual && adminPasswordActual) {
                     console.log("Re-autenticando al administrador...");
                     await auth.signInWithEmailAndPassword(adminEmailActual, adminPasswordActual);
                     console.log("Administrador re-autenticado.");
                     // onAuthStateChanged debería manejar la actualización de currentUser al admin
+                    // y recargar los datos.
                 } else {
-                    console.warn("No se pudieron obtener las credenciales del admin para re-autenticar. El admin podría necesitar re-loguearse o la sesión actual del nuevo usuario persistirá.");
-                    // Si no hay credenciales de admin, el nuevo usuario queda logueado.
-                    // Esto es un comportamiento de Firebase. Para evitarlo, se podría desloguear al nuevo usuario
-                    // y luego forzar un re-login del admin, pero eso es más complejo para la demo.
-                    // O, simplemente, el admin cierra sesión y vuelve a entrar.
+                    console.warn("No se pudieron obtener las credenciales del admin para re-autenticar. El admin podría necesitar re-loguearse.");
+                    await auth.signOut(); // Forzar logout para que el admin re-loguee
+                    return; 
                 }
             }
             await renderizarTablaUsuarios(); 
@@ -507,6 +513,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 usuarioFormError.textContent = 'La contraseña es demasiado débil (mínimo 6 caracteres).';
             } else {
                 usuarioFormError.textContent = 'Error al guardar usuario: ' + error.message;
+            }
+             // Si hubo un error creando el usuario en Auth, y el admin se deslogueó, re-loguear admin
+            if (auth.currentUser && auth.currentUser.email !== adminEmailActual && adminEmailActual && adminPasswordActual) {
+                try {
+                    await auth.signInWithEmailAndPassword(adminEmailActual, adminPasswordActual);
+                } catch (reloginError) {
+                    console.error("Error re-logueando admin después de fallo en creación de usuario:", reloginError);
+                }
             }
         }
     }
@@ -637,10 +651,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tablaCuadernosBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center">Cargando cuadernos...</td></tr>';
         
         try {
-            // Asegurar que los cuadernos estén cargados
-            if (cuadernos.length === 0 && currentUser) { 
-                 await cargarDatosGlobales();
-            }
+            await cargarDatosGlobales(); // Asegurar que los cuadernos estén actualizados
 
             tablaCuadernosBody.innerHTML = ''; 
             if (cuadernos.length === 0) {
@@ -648,7 +659,6 @@ document.addEventListener('DOMContentLoaded', () => {
                  return;
             }
 
-            // Asegurar que 'usuarios' esté poblado para mostrar nombres asignados
             if (usuarios.length === 0 && currentUser && currentUser.rol === 'admin') {
                 const usuariosSnapshot = await db.collection(COLECCION_USUARIOS).get();
                 usuarios = usuariosSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
@@ -731,11 +741,8 @@ document.addEventListener('DOMContentLoaded', () => {
             emailsConPendientes, 
             usuariosAsignados: usuariosAsignadosSeleccionados
         };
-        // Eliminar propiedades de email antiguas si existen para limpiar la data
-        delete datosCuaderno.emailsMalo;
-        delete datosCuaderno.emailsRegular;
-        delete datosCuaderno.emailsBueno;
-        delete datosCuaderno.emailsMuyBueno;
+        delete datosCuaderno.emailsMalo; delete datosCuaderno.emailsRegular; 
+        delete datosCuaderno.emailsBueno; delete datosCuaderno.emailsMuyBueno;
 
 
         try {
