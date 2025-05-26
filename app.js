@@ -325,7 +325,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (currentUser.rol === 'admin') mostrarVista(VISTAS.ADMIN_DASHBOARD);
             else if (currentUser.rol === 'operario') mostrarVista(VISTAS.OPERARIO_DASHBOARD);
-            else if (currentUser.rol === 'supervisor') mostrarVista(VISTAS.SUPERVISOR_DASHBOARD);
+            else if (currentUser.rol === 'supervisor') mostrarVista(VISTAS.SUPERVISOR_DASHBOARD); // Supervisor va al tablero general por defecto
             else mostrarVista(VISTAS.LOGIN);
             
             loginForm.reset(); 
@@ -355,11 +355,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             console.log(`Intentando iniciar sesión con email: ${emailInput}`);
-            adminCredentials = { email: emailInput, password: passwordInput };
+            adminCredentials = { email: emailInput, password: passwordInput }; // Guardar para posible re-login
             console.log("Admin credentials potentially set in handleLogin:", adminCredentials);
 
-
             await auth.signInWithEmailAndPassword(emailInput, passwordInput);
+            // onAuthStateChanged se encargará de la redirección
         } catch (error) {
             console.error("Error de inicio de sesión:", error.code, error.message);
             let friendlyMessage = "Email o contraseña incorrectos.";
@@ -570,6 +570,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- GESTIÓN DE CUADERNOS (ADMIN) ---
+    function popularSelectUsuariosOperarios(selectedUserIds = []) {
+        if (!cuadernoUsuariosAsignadosContainer) return;
+        cuadernoUsuariosAsignadosContainer.innerHTML = ''; 
+        const operarios = usuarios.filter(u => u.rol === 'operario');
+
+        if (operarios.length === 0) {
+            cuadernoUsuariosAsignadosContainer.innerHTML = '<p class="text-sm text-slate-500">No hay usuarios operarios para asignar.</p>';
+            return;
+        }
+
+        operarios.forEach(op => {
+            const checkboxId = `user-assign-${op.uid}`;
+            const label = document.createElement('label');
+            label.htmlFor = checkboxId;
+            label.className = 'flex items-center space-x-2 p-1 hover:bg-slate-100 rounded cursor-pointer';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = checkboxId;
+            checkbox.value = op.uid;
+            checkbox.className = 'form-checkbox h-4 w-4 text-sky-600 border-slate-300 rounded focus:ring-sky-500';
+            if (selectedUserIds.includes(op.uid)) {
+                checkbox.checked = true;
+            }
+            
+            label.appendChild(checkbox);
+            label.appendChild(document.createTextNode(`${op.nombreCompleto} (${op.email})`));
+            cuadernoUsuariosAsignadosContainer.appendChild(label);
+        });
+    }
+
+    function popularSelectorColorCuaderno(claseColorSeleccionada = '') { 
+        if (!cuadernoColorSelect) return;
+        cuadernoColorSelect.innerHTML = ''; 
+        COLORES_CUADERNO.forEach(color => {
+            const option = document.createElement('option');
+            option.value = color.clase;
+            option.textContent = color.nombre;
+            if (color.clase === claseColorSeleccionada) {
+                option.selected = true;
+            }
+            cuadernoColorSelect.appendChild(option);
+        });
+    }
+
     async function toggleFormularioCuaderno(mostrar = true, firestoreDocId = null) { 
         if (mostrar) {
             editandoCuadernoFirestoreId = firestoreDocId; 
@@ -579,6 +624,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const docSnap = await db.collection(COLECCION_CUADERNOS).doc(firestoreDocId).get();
                     if (docSnap.exists) {
                         cuadernoParaEditar = { firestoreDocId: docSnap.id, ...docSnap.data()};
+                        console.log("Cuaderno para editar cargado:", cuadernoParaEditar);
                     } else {
                         console.error("Cuaderno para editar no encontrado en Firestore:", firestoreDocId);
                         cuadernoFormError.textContent = "Error: No se encontró el cuaderno para editar.";
@@ -598,7 +644,14 @@ document.addEventListener('DOMContentLoaded', () => {
             
             cuadernoNombreInput.value = cuadernoParaEditar ? cuadernoParaEditar.nombre : '';
             cuadernoTipoSelect.value = cuadernoParaEditar ? cuadernoParaEditar.tipo : 'novedades'; 
-            popularSelectorColorCuaderno(cuadernoParaEditar ? cuadernoParaEditar.colorClase : COLORES_CUADERNO[0].clase); 
+            
+            // Asegurar que la función exista antes de llamarla
+            if (typeof popularSelectorColorCuaderno === 'function') {
+                popularSelectorColorCuaderno(cuadernoParaEditar ? cuadernoParaEditar.colorClase : COLORES_CUADERNO[0].clase);
+            } else {
+                console.error("popularSelectorColorCuaderno no está definida.");
+            }
+
 
             const esChecklist = cuadernoTipoSelect.value === 'checklist';
             if (emailConfigUnificadoDiv) emailConfigUnificadoDiv.classList.remove('hidden-view'); 
@@ -659,9 +712,8 @@ document.addEventListener('DOMContentLoaded', () => {
         tablaCuadernosBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center">Cargando cuadernos...</td></tr>';
         
         try {
-            // 'cuadernos' se carga en cargarDatosGlobales
-            // Si se necesita un refresco inmediato, se puede llamar a cargarDatosGlobales()
-            // await cargarDatosGlobales(); 
+            // Cargar o asegurar que los cuadernos estén actualizados desde Firestore
+            await cargarDatosGlobales(); 
 
             tablaCuadernosBody.innerHTML = ''; 
             if (cuadernos.length === 0) {
@@ -669,6 +721,7 @@ document.addEventListener('DOMContentLoaded', () => {
                  return;
             }
 
+            // Asegurar que 'usuarios' esté poblado para mostrar nombres asignados
             if (usuarios.length === 0 && currentUser && currentUser.rol === 'admin') {
                 const usuariosSnapshot = await db.collection(COLECCION_USUARIOS).get();
                 usuarios = usuariosSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
