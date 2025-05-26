@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const emailSimDestinatarios = document.getElementById('emailSimDestinatarios');
     const emailSimAsunto = document.getElementById('emailSimAsunto');
     const emailSimCuerpo = document.getElementById('emailSimCuerpo');
-    const closeEmailSimulacionModalBtn = document.getElementById('closeEmailSimulacionModal'); // Corregido, antes era el mismo ID
+    const closeEmailSimulacionModalBtn = document.getElementById('closeEmailSimulacionModal'); 
     const okEmailSimulacionModalBtn = document.getElementById('okEmailSimulacionModal');
     const loginForm = document.getElementById('loginForm');
     const logoutButton = document.getElementById('logoutButton');
@@ -572,7 +572,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function popularSelectUsuariosOperarios(selectedUserIds = []) {
         if (!cuadernoUsuariosAsignadosContainer) return;
         cuadernoUsuariosAsignadosContainer.innerHTML = ''; 
-        // Asegurar que 'usuarios' (con UIDs) esté poblado
         const operarios = usuarios.filter(u => u.rol === 'operario');
 
         if (operarios.length === 0) {
@@ -708,8 +707,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
             // 'cuadernos' se carga en cargarDatosGlobales
-            // Si es necesario un refresco forzado, se puede llamar a cargarDatosGlobales() aquí.
-            // await cargarDatosGlobales(); 
+            if (cuadernos.length === 0 && currentUser) { 
+                 await cargarDatosGlobales(); 
+            }
 
             tablaCuadernosBody.innerHTML = ''; 
             if (cuadernos.length === 0) {
@@ -717,7 +717,6 @@ document.addEventListener('DOMContentLoaded', () => {
                  return;
             }
 
-            // Asegurar que 'usuarios' esté poblado para mostrar nombres asignados
             if (usuarios.length === 0 && currentUser && currentUser.rol === 'admin') {
                 const usuariosSnapshot = await db.collection(COLECCION_USUARIOS).get();
                 usuarios = usuariosSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
@@ -870,7 +869,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- FUNCIONALIDAD DEL OPERARIO ---
     async function renderizarDashboardOperario() {
-        if (!operarioCuadernosContainer || !currentUser || currentUser.rol !== 'operario') {
+        if (!operarioCuadernosContainer || !currentUser || !currentUser.uid) { // Verificar currentUser.uid
             if(operarioWelcomeMessage) operarioWelcomeMessage.textContent = 'No tienes cuadernos asignados o no eres un operario.';
             if(operarioCuadernosContainer) operarioCuadernosContainer.innerHTML = '';
             return;
@@ -879,11 +878,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if(operarioWelcomeMessage) operarioWelcomeMessage.textContent = `Bienvenido, ${currentUser.nombreCompleto}. Selecciona un cuaderno para ver/registrar novedades:`;
         operarioCuadernosContainer.innerHTML = ''; 
 
-        // 'cuadernos' ya debería estar cargado desde cargarDatosGlobales
         const cuadernosAsignadosAlOperario = cuadernos.filter(cuaderno =>
-            (cuaderno.usuariosAsignados || []).includes(currentUser.uid) // Comparar con currentUser.uid
+            (cuaderno.usuariosAsignados || []).includes(currentUser.uid) 
         );
-        console.log("Cuadernos asignados al operario:", cuadernosAsignadosAlOperario);
+        console.log("Cuadernos asignados al operario:", cuadernosAsignadosAlOperario, "Current User UID:", currentUser.uid);
+        console.log("Todos los cuadernos (para verificar asignaciones):", JSON.parse(JSON.stringify(cuadernos)));
 
 
         if (cuadernosAsignadosAlOperario.length === 0) {
@@ -927,7 +926,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        cuadernoActualOperario = { id: cuaderno.id, nombre: cuaderno.nombre, firestoreDocId: cuaderno.firestoreDocId, tipo: cuaderno.tipo }; // Guardar el ID manual y el de Firestore
+        cuadernoActualOperario = { id: cuaderno.id, nombre: cuaderno.nombre, firestoreDocId: cuaderno.firestoreDocId, tipo: cuaderno.tipo }; 
         vistaAnteriorParaDetalleCuaderno = vistaDeRetorno; 
         if (detalleCuadernoNombre) detalleCuadernoNombre.textContent = `Novedades de: ${cuaderno.nombre}`;
         
@@ -952,24 +951,23 @@ document.addEventListener('DOMContentLoaded', () => {
             detalleContenidoChecklist.classList.remove('hidden-view');
             btnAbrirFormNovedadDesdeDetalle.classList.add('hidden-view'); 
             renderizarFormularioChecklist(cuaderno);
-            await renderizarHistorialChecklists(cuaderno.id); // Usar ID manual para filtrar
+            await renderizarHistorialChecklists(cuaderno.id); 
         } else { 
             detalleContenidoChecklist.classList.add('hidden-view');
             detalleContenidoNovedades.classList.remove('hidden-view');
             btnAbrirFormNovedadDesdeDetalle.classList.remove('hidden-view'); 
-            await renderizarNovedadesDeCuaderno(cuaderno.id); // Usar ID manual para filtrar
+            await renderizarNovedadesDeCuaderno(cuaderno.id); 
         }
     }
 
-    async function renderizarNovedadesDeCuaderno(cuadernoIdManual) { // Recibe el ID manual del cuaderno
+    async function renderizarNovedadesDeCuaderno(cuadernoIdManual) { 
         if (!listaNovedadesCuadernoOperario) return;
         listaNovedadesCuadernoOperario.innerHTML = '<p class="text-slate-500 p-4 text-center">Cargando novedades...</p>';
 
         try {
-            // 'novedades' ya está cargado globalmente y ordenado por fecha desc
             const novedadesDelCuaderno = novedades
                 .filter(n => n.cuadernoId === cuadernoIdManual)
-                .sort((a, b) => { // Re-ordenar por hora si es necesario, aunque ya vienen por fecha
+                .sort((a, b) => { 
                     const dateA = new Date(a.fecha.split('/').reverse().join('-') + 'T' + a.hora);
                     const dateB = new Date(b.fecha.split('/').reverse().join('-') + 'T' + b.hora);
                     return dateB - dateA;
@@ -1007,10 +1005,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    function abrirFormularioNovedad(cuadernoIdManual, cuadernoNombre) { // Recibe el ID manual
+    function abrirFormularioNovedad(cuadernoIdManual, cuadernoNombre) { 
         if (!formNovedadModal) return;
         formNovedad.reset(); 
-        novedadCuadernoIdInput.value = cuadernoIdManual; // Guardar el ID manual
+        novedadCuadernoIdInput.value = cuadernoIdManual; 
         novedadCuadernoNombreInput.value = cuadernoNombre;
         formNovedadTitle.textContent = `Registrar Novedad para: ${cuadernoNombre}`;
         novedadFormError.textContent = '';
@@ -1025,7 +1023,7 @@ document.addEventListener('DOMContentLoaded', () => {
         event.preventDefault();
         novedadFormError.textContent = '';
 
-        const cuadernoIdManual = novedadCuadernoIdInput.value; // Este es el ID manual
+        const cuadernoIdManual = novedadCuadernoIdInput.value; 
         const turno = novedadTurnoSelect.value;
         const texto = novedadTextoTextarea.value.trim();
         const calificacion = novedadCalificacionSelect.value; 
@@ -1050,9 +1048,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const docRef = await db.collection(COLECCION_NOVEDADES).add(nuevaNovedad);
             console.log("Nueva novedad guardada en Firestore con ID: ", docRef.id);
             
-            novedades.push({ firestoreDocId: docRef.id, ...nuevaNovedad });
-            novedades.sort((a, b) => new Date(b.fecha.split('/').reverse().join('-') + 'T' + b.hora) - new Date(a.fecha.split('/').reverse().join('-') + 'T' + a.hora));
-
+            await cargarDatosGlobales(); // Recargar novedades para incluir la nueva
 
             simularEnvioEmail(nuevaNovedad); 
             cerrarFormularioNovedad();
@@ -1164,7 +1160,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let totalNovedadesHoy = 0; 
 
         // Asegurar que cuadernos, novedades y checklistEntradas estén cargados
-        if (cuadernos.length === 0 || (novedades.length === 0 && checklistEntradas.length === 0 && currentUser)) { // Solo recargar si hay usuario y datos potencialmente faltantes
+        if (cuadernos.length === 0 || (novedades.length === 0 && checklistEntradas.length === 0 && currentUser)) { 
             await cargarDatosGlobales();
         }
 
@@ -1355,7 +1351,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!listaTareasChecklist || !checklistCuadernoIdInput || !formChecklist) return;
         
         listaTareasChecklist.innerHTML = ''; 
-        checklistCuadernoIdInput.value = cuaderno.id; // Usar el ID manual del cuaderno
+        checklistCuadernoIdInput.value = cuaderno.id; 
         formChecklist.reset(); 
         if(checklistObservacionesTextarea) checklistObservacionesTextarea.value = ''; 
 
@@ -1446,7 +1442,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!checklistFormError || !checklistTurnoSelect || !checklistCalificacionSelect || !listaTareasChecklist || !checklistCuadernoIdInput || !checklistObservacionesTextarea) return;
         
         checklistFormError.textContent = '';
-        const cuadernoIdManual = checklistCuadernoIdInput.value; // Este es el ID manual del cuaderno
+        const cuadernoIdManual = checklistCuadernoIdInput.value; 
         const turno = checklistTurnoSelect.value;
         const calificacion = checklistCalificacionSelect.value; 
         const observacionesGlobales = checklistObservacionesTextarea.value.trim(); 
@@ -1502,8 +1498,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         const nuevaEntradaChecklist = {
-            // Firestore generará el ID del documento
-            cuadernoId: cuadernoIdManual, // Referencia al ID manual del cuaderno
+            cuadernoId: cuadernoIdManual, 
             usuarioId: currentUser.uid,
             nombreUsuario: currentUser.nombreCompleto,
             fecha: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }),
@@ -1518,10 +1513,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const docRef = await db.collection(COLECCION_CHECKLISTS).add(nuevaEntradaChecklist);
             console.log("Nueva entrada de checklist guardada en Firestore con ID: ", docRef.id);
             
-            // Actualizar array local
-            checklistEntradas.push({ firestoreDocId: docRef.id, ...nuevaEntradaChecklist });
-            checklistEntradas.sort((a,b) => new Date(b.fecha.split('/').reverse().join('-') + 'T' + b.hora) - new Date(a.fecha.split('/').reverse().join('-') + 'T' + a.hora));
-
+            await cargarDatosGlobales(); // Recargar para incluir la nueva entrada
 
             simularEnvioEmail(nuevaEntradaChecklist, 'checklist');
             
@@ -1728,7 +1720,7 @@ document.addEventListener('DOMContentLoaded', () => {
         supervisorGridNovedadesBody.addEventListener('click', (event) => {
             const target = event.target.closest('.ver-detalles-supervisor-btn');
             if (target) {
-                const cuadernoId = target.dataset.cuadernoId; // Este es el firestoreDocId
+                const cuadernoId = target.dataset.cuadernoId; 
                 const cuadernoNombre = target.dataset.cuadernoNombre;
                 const fecha = target.dataset.fecha;
                 const tipoCuaderno = target.dataset.cuadernoTipo; 
