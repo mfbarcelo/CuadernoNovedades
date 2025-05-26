@@ -5,7 +5,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Firebase services ya están inicializados en index.html y disponibles como 'auth' y 'db'
 
     // --- SELECTORES DEL DOM ---
-    // Vistas
     const loginView = document.getElementById('loginView');
     const adminDashboardView = document.getElementById('adminDashboardView');
     const adminGestionUsuariosView = document.getElementById('adminGestionUsuariosView');
@@ -15,16 +14,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const supervisorDashboardView = document.getElementById('supervisorDashboardView'); 
     const supervisorGestionNovedadesView = document.getElementById('supervisorGestionNovedadesView'); 
     const mainNav = document.getElementById('mainNav');
-
-    // Contenedores de Dashboards específicos
     const operarioCuadernosContainer = document.getElementById('operarioCuadernosContainer');
     const operarioWelcomeMessage = document.getElementById('operarioWelcomeMessage');
     const detalleCuadernoNombre = document.getElementById('detalleCuadernoNombre'); 
     const listaNovedadesCuadernoOperario = document.getElementById('listaNovedadesCuadernoOperario');
     const btnVolverADashboardUsuario = document.getElementById('btnVolverADashboardUsuario'); 
     const btnAbrirFormNovedadDesdeDetalle = document.getElementById('btnAbrirFormNovedadDesdeDetalle');
-    
-    // Contenedores para contenido dinámico en operarioCuadernoDetalleView
     const detalleContenidoNovedades = document.getElementById('detalleContenidoNovedades');
     const detalleContenidoChecklist = document.getElementById('detalleContenidoChecklist');
     const listaTareasChecklist = document.getElementById('listaTareasChecklist'); 
@@ -35,48 +30,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const checklistCalificacionSelect = document.getElementById('checklistCalificacion');
     const checklistFormError = document.getElementById('checklistFormError');
     const historialChecklistsCuaderno = document.getElementById('historialChecklistsCuaderno');
-
-
-    // Elementos del Dashboard Supervisor (Tablero General)
     const supervisorDatePicker = document.getElementById('supervisorDatePicker');
     const supervisorGridNovedadesBody = document.getElementById('supervisorGridNovedadesBody');
     const totalCuadernosConNovedadesSpan = document.getElementById('totalCuadernosConNovedades');
     const totalCuadernosSinNovedadesSpan = document.getElementById('totalCuadernosSinNovedades');
     const totalNovedadesRegistradasSpan = document.getElementById('totalNovedadesRegistradas');
-
-    // Elementos de Supervisor Gestión Novedades
     const supervisorGestionWelcomeMessage = document.getElementById('supervisorGestionWelcomeMessage');
     const supervisorGestionCuadernosContainer = document.getElementById('supervisorGestionCuadernosContainer');
-
-
-    // Modales
     const formNovedadModal = document.getElementById('formNovedadModal');
     const detalleNovedadesModal = document.getElementById('detalleNovedadesModal');
     const detalleNovedadesTitle = document.getElementById('detalleNovedadesTitle');
     const detalleNovedadesContent = document.getElementById('detalleNovedadesContent');
     const closeDetalleNovedadesModalBtn = document.getElementById('closeDetalleNovedadesModal');
-    
-    // Modal de Simulación de Email
     const emailSimulacionModal = document.getElementById('emailSimulacionModal');
     const emailSimDestinatarios = document.getElementById('emailSimDestinatarios');
     const emailSimAsunto = document.getElementById('emailSimAsunto');
     const emailSimCuerpo = document.getElementById('emailSimCuerpo');
     const closeEmailSimulacionModalBtn = document.getElementById('closeEmailSimulacionModal');
     const okEmailSimulacionModalBtn = document.getElementById('okEmailSimulacionModal');
-
-
-    if (formNovedadModal) formNovedadModal.style.display = 'none';
-    if (detalleNovedadesModal) detalleNovedadesModal.style.display = 'none';
-    if (emailSimulacionModal) emailSimulacionModal.style.display = 'none'; 
-
-    // Formularios y Botones Generales
     const loginForm = document.getElementById('loginForm');
     const logoutButton = document.getElementById('logoutButton');
     const currentUserDisplay = document.getElementById('currentUserDisplay');
     const loginError = document.getElementById('loginError');
     const roleSpecificNav = document.getElementById('roleSpecificNav');
-
-    // Elementos de Gestión de Usuarios
     const btnNuevoUsuario = document.getElementById('btnNuevoUsuario');
     const formNuevoUsuarioContainer = document.getElementById('formNuevoUsuarioContainer');
     const formUsuario = document.getElementById('formUsuario');
@@ -89,14 +65,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelarFormUsuarioBtn = document.getElementById('cancelarFormUsuario');
     const usuarioFormError = document.getElementById('usuarioFormError');
     const tablaUsuariosBody = document.getElementById('tablaUsuariosBody');
-
-    // Elementos de Gestión de Cuadernos
     const btnNuevoCuaderno = document.getElementById('btnNuevoCuaderno');
     const formNuevoCuadernoContainer = document.getElementById('formNuevoCuadernoContainer');
     const formCuaderno = document.getElementById('formCuaderno');
     const formCuadernoTitle = document.getElementById('formCuadernoTitle');
-    const cuadernoIdToEditInput = document.getElementById('cuadernoIdToEdit');
-    const cuadernoIdInput = document.getElementById('cuadernoId');
+    const cuadernoIdToEditInput = document.getElementById('cuadernoIdToEdit'); // Firestore document ID
+    const cuadernoIdManualInput = document.getElementById('cuadernoId'); // El ID legible/manual
     const cuadernoNombreInput = document.getElementById('cuadernoNombre');
     const cuadernoTipoSelect = document.getElementById('cuadernoTipo'); 
     const cuadernoTareasChecklistContainer = document.getElementById('cuadernoTareasChecklistContainer'); 
@@ -106,13 +80,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const cuadernoEmailsTodoRealizadoInput = document.getElementById('cuadernoEmailsTodoRealizado');
     const cuadernoEmailsConPendientesInput = document.getElementById('cuadernoEmailsConPendientes');
     const emailConfigNovedadesDiv = document.getElementById('emailConfigNovedades'); 
-
     const cuadernoUsuariosAsignadosContainer = document.getElementById('cuadernoUsuariosAsignadosContainer');
     const cancelarFormCuadernoBtn = document.getElementById('cancelarFormCuaderno');
     const cuadernoFormError = document.getElementById('cuadernoFormError');
     const tablaCuadernosBody = document.getElementById('tablaCuadernosBody');
-
-    // Elementos del Formulario de Novedad
     const formNovedad = document.getElementById('formNovedad');
     const formNovedadTitle = document.getElementById('formNovedadTitle');
     const novedadCuadernoIdInput = document.getElementById('novedadCuadernoId'); 
@@ -120,10 +91,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const novedadTurnoSelect = document.getElementById('novedadTurno');
     const novedadTextoTextarea = document.getElementById('novedadTexto');
     const novedadCalificacionSelect = document.getElementById('novedadCalificacion');
-    const closeFormNovedadModalBtn = document.getElementById('closeFormNovedadModal');
+    const closeFormNovedadModalBtnNovedad = document.getElementById('closeFormNovedadModal'); // Renombrado para evitar conflicto
     const cancelNovedadBtn = document.getElementById('cancelNovedad');
     const novedadFormError = document.getElementById('novedadFormError');
-
+    
 
     // --- Nombres de Colecciones Firestore ---
     const COLECCION_USUARIOS = 'usuarios';
@@ -134,12 +105,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- ESTADO DE LA APLICACIÓN ---
     let currentUser = null; 
-    let usuarios = []; // Lista de usuarios para gestión (no para auth)
-    let cuadernos = [];
-    let novedades = [];
-    let checklistEntradas = []; 
+    let usuarios = []; 
+    let cuadernos = []; // Se cargará desde Firestore
+    let novedades = []; // Se cargará desde Firestore
+    let checklistEntradas = []; // Se cargará desde Firestore
     let editandoUsuarioId = null; 
-    let editandoCuadernoId = null; 
+    let editandoCuadernoFirestoreId = null; // ID del documento de Firestore para el cuaderno en edición
     let cuadernoActualOperario = null;  
     let vistaAnteriorParaDetalleCuaderno = null; 
 
@@ -174,16 +145,12 @@ document.addEventListener('DOMContentLoaded', () => {
         CON_TAREAS_PENDIENTES: 'Con tareas pendientes'
     };
 
-
     // --- LÓGICA DE DATOS (Firestore) ---
-    // No hay 'guardarUsuarios' global, se hace por documento en Firestore.
-    // No hay 'guardarCuadernos' global, se hace por documento en Firestore.
-    // ...etc. para novedades y checklists.
-
-    async function cargarDatosGlobales() { // Carga datos que no dependen del usuario logueado o que todos ven
+    async function cargarDatosGlobales() { 
         try {
-            // Cargar Cuadernos
             const cuadernosSnapshot = await db.collection(COLECCION_CUADERNOS).get();
+            cuadernos = cuadernosSnapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
+            
             if (cuadernosSnapshot.empty) {
                 console.log("No hay cuadernos en Firestore, creando datos semilla...");
                 const cuadernosSeed = [
@@ -207,22 +174,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 ];
                 const batch = db.batch();
                 for (const cuaderno of cuadernosSeed) {
-                    const docRef = db.collection(COLECCION_CUADERNOS).doc(cuaderno.id); // Usar ID manual como ID de Firestore
+                    const docRef = db.collection(COLECCION_CUADERNOS).doc(cuaderno.id); 
                     batch.set(docRef, cuaderno);
                 }
                 await batch.commit();
                 console.log("Cuadernos semilla creados en Firestore.");
                 const snapshot = await db.collection(COLECCION_CUADERNOS).get();
                 cuadernos = snapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
-            } else {
-                 cuadernos = cuadernosSnapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
             }
 
-            // Cargar Novedades
             const novedadesSnapshot = await db.collection(COLECCION_NOVEDADES).orderBy("fecha", "desc").orderBy("hora", "desc").get();
             novedades = novedadesSnapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
 
-            // Cargar ChecklistEntradas
             const checklistsSnapshot = await db.collection(COLECCION_CHECKLISTS).orderBy("fecha", "desc").orderBy("hora", "desc").get();
             checklistEntradas = checklistsSnapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
             
@@ -315,7 +278,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log("onAuthStateChanged: currentUser establecido desde Firestore:", currentUser);
             } else {
                 console.warn(`onAuthStateChanged: Documento para usuario ${user.uid} no encontrado en Firestore.`);
-                // Lógica para el primer admin (creado manualmente en Firebase Auth Console)
                 // CAMBIA "admin@ejemplo.com" AL EMAIL EXACTO DE TU ADMIN EN FIREBASE AUTH
                 if (user.email === "mfbarcelo@gmail.com") { 
                      console.log("Intentando establecer rol de admin para el usuario semilla.");
@@ -331,12 +293,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         console.log("onAuthStateChanged: currentUser establecido para admin semilla:", currentUser);
                      } catch (errorSetAdmin) {
                         console.error("Error estableciendo rol de admin en Firestore:", errorSetAdmin);
-                        await auth.signOut(); // Desloguear si falla la creación del perfil
-                        return; // Salir para evitar más errores
+                        await auth.signOut(); 
+                        return; 
                      }
                 } else {
-                    // Otros usuarios deberían tener un documento en Firestore creado por un admin.
-                    // Si no lo tienen, no podrán operar correctamente.
                     console.error(`Usuario ${user.email} autenticado pero sin perfil en Firestore. Contactar administrador.`);
                     alert(`Tu cuenta (${user.email}) no está completamente configurada. Por favor, contacta al administrador.`);
                     await auth.signOut();
@@ -344,7 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            await cargarDatosGlobales(); // Cargar cuadernos, novedades, etc.
+            await cargarDatosGlobales(); 
 
             if (currentUser.rol === 'admin') mostrarVista(VISTAS.ADMIN_DASHBOARD);
             else if (currentUser.rol === 'operario') mostrarVista(VISTAS.OPERARIO_DASHBOARD);
@@ -371,7 +331,6 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             console.log(`Intentando iniciar sesión con email: ${emailInput}`);
             await auth.signInWithEmailAndPassword(emailInput, passwordInput);
-            // onAuthStateChanged se encargará de la redirección y carga de datos
             loginForm.reset();
         } catch (error) {
             console.error("Error de inicio de sesión:", error.code, error.message);
@@ -388,23 +347,39 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleLogout() {
         try {
             await auth.signOut();
-            // onAuthStateChanged limpiará currentUser y mostrará loginView.
         } catch (error) {
             console.error("Error al cerrar sesión:", error);
         }
     }
 
     // --- GESTIÓN DE USUARIOS (ADMIN) ---
-    // ... (toggleFormularioUsuario, renderizarTablaUsuarios (adaptar para leer de Firestore),
-    //      handleGuardarUsuario (adaptar para crear en Auth y Firestore),
-    //      handleEditarUsuarioClick, handleEliminarUsuarioClick (adaptar para Firestore y opcionalmente Auth))
-    // ... SE MANTIENEN LAS VERSIONES ANTERIORES DE ESTAS FUNCIONES POR AHORA,
-    //     PERO NECESITARÁN SER COMPLETAMENTE REESCRITAS PARA FIRESTORE.
+    function toggleFormularioUsuario(mostrar = true, usuarioParaEditar = null) {
+        if (mostrar) {
+            editandoUsuarioId = usuarioParaEditar ? usuarioParaEditar.uid : null; 
+            formUsuarioTitle.textContent = usuarioParaEditar ? 'Editar Usuario' : 'Agregar Nuevo Usuario';
+            usuarioEmailInput.value = usuarioParaEditar ? usuarioParaEditar.email : '';
+            usuarioEmailInput.readOnly = !!usuarioParaEditar; 
+            usuarioNombreCompletoInput.value = usuarioParaEditar ? usuarioParaEditar.nombreCompleto : '';
+            usuarioPasswordInput.value = ''; 
+            usuarioPasswordInput.placeholder = usuarioParaEditar ? '(Dejar en blanco para no cambiar contraseña)' : 'Contraseña';
+            usuarioPasswordInput.required = !usuarioParaEditar; 
+            usuarioRolInput.value = usuarioParaEditar ? usuarioParaEditar.rol : 'operario';
+            
+            usuarioIdToEditInput.value = editandoUsuarioId || ''; 
 
-    // --- FUNCIONES CRUD PARA FIRESTORE (Ejemplos que necesitarás adaptar y completar) ---
-    
-    // Ejemplo:
-    async function renderizarTablaUsuarios() { // Debe ser async
+            formNuevoUsuarioContainer.classList.remove('hidden-view');
+            usuarioFormError.textContent = '';
+        } else {
+            formNuevoUsuarioContainer.classList.add('hidden-view');
+            formUsuario.reset();
+            editandoUsuarioId = null;
+            usuarioEmailInput.readOnly = false;
+            usuarioPasswordInput.placeholder = 'Contraseña';
+            usuarioPasswordInput.required = true; 
+        }
+    }
+
+    async function renderizarTablaUsuarios() { 
         if (!tablaUsuariosBody) return;
         tablaUsuariosBody.innerHTML = '<tr><td colspan="4" class="p-4 text-center">Cargando usuarios...</td></tr>';
         
@@ -414,7 +389,7 @@ document.addEventListener('DOMContentLoaded', () => {
             querySnapshot.forEach((doc) => {
                 usuariosFirestore.push({ uid: doc.id, ...doc.data() });
             });
-            usuarios = usuariosFirestore; // Actualizar array global si se usa para popular selects
+            usuarios = usuariosFirestore; 
 
             tablaUsuariosBody.innerHTML = ''; 
             if (usuarios.length === 0) {
@@ -441,8 +416,8 @@ document.addEventListener('DOMContentLoaded', () => {
             tablaUsuariosBody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-red-500">Error al cargar usuarios.</td></tr>';
         }
     }
-
-    async function handleGuardarUsuario(event) { // Debe ser async
+    
+    async function handleGuardarUsuario(event) { 
         event.preventDefault();
         usuarioFormError.textContent = '';
         const email = usuarioEmailInput.value.trim();
@@ -456,26 +431,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            if (editandoUsuarioId) { // editandoUsuarioId es el UID
+            if (editandoUsuarioId) { 
                 await db.collection(COLECCION_USUARIOS).doc(editandoUsuarioId).update({
                     nombreCompleto: nombreCompleto,
                     rol: rol,
-                    email: email // Firestore también guarda el email para mostrarlo
+                    email: email 
                 });
                 console.log("Usuario actualizado en Firestore:", editandoUsuarioId);
-                // Nota: Cambio de email o contraseña en Auth es más complejo y no se hace aquí.
+                 if (password) {
+                    alert("Información del usuario actualizada. Para cambiar la contraseña de un usuario existente, por favor use la consola de Firebase Authentication.");
+                }
             } else {
                 if (!password) {
                      usuarioFormError.textContent = 'La contraseña es obligatoria para nuevos usuarios.';
                      return;
                 }
-                // Verificar si el email ya existe en la colección 'usuarios' de Firestore
-                const q = db.collection(COLECCION_USUARIOS).where("email", "==", email);
-                const querySnapshot = await q.get();
-                if (!querySnapshot.empty) {
-                    usuarioFormError.textContent = 'El email ya está en uso.';
-                    return;
-                }
+                
+                // No es necesario verificar si el email ya existe en Firestore aquí,
+                // createUserWithEmailAndPassword lo hará en Firebase Auth.
 
                 const userCredential = await auth.createUserWithEmailAndPassword(email, password);
                 const newUser = userCredential.user;
@@ -503,14 +476,60 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // --- Resto de funciones (cuadernos, novedades, checklist, etc.) ---
-    // --- Estas funciones NECESITAN ser migradas a Firestore ---
-    // --- Dejaré las estructuras básicas y los TODOs ---
+    function handleEditarUsuarioClick(userId) { 
+        const usuarioAEditar = usuarios.find(u => u.uid === userId); 
+        if (usuarioAEditar) {
+            toggleFormularioUsuario(true, usuarioAEditar);
+        } else {
+            console.error("No se encontró el usuario para editar con UID:", userId);
+        }
+    }
 
+    async function handleEliminarUsuarioClick(userId) { 
+        const usuarioAEliminar = usuarios.find(u => u.uid === userId);
+        if (!usuarioAEliminar) {
+            console.error("No se encontró el usuario para eliminar con UID:", userId);
+            return;
+        }
+        
+        if (currentUser && currentUser.uid === userId) {
+            alert("No puedes eliminarte a ti mismo.");
+            return;
+        }
+        // Evitar eliminar al admin "semilla" si es el único admin
+        const admins = usuarios.filter(u => u.rol === 'admin');
+        if (usuarioAEliminar.rol === 'admin' && admins.length <= 1 && admins[0].uid === userId) {
+             alert("No se puede eliminar al único administrador.");
+            return;
+        }
+
+
+        if (confirm(`¿Estás seguro de que quieres eliminar al usuario "${usuarioAEliminar.nombreCompleto || usuarioAEliminar.email}"? Esta acción es compleja y requiere eliminar de Authentication también (manual por ahora).`)) {
+            try {
+                await db.collection(COLECCION_USUARIOS).doc(userId).delete();
+                console.log("Usuario eliminado de Firestore:", userId);
+                
+                alert(`Usuario ${usuarioAEliminar.nombreCompleto || usuarioAEliminar.email} eliminado de la base de datos de la app. Por favor, elimínalo también de Firebase Authentication manualmente si es necesario.`);
+
+                if (editandoUsuarioId === userId) {
+                    toggleFormularioUsuario(false);
+                }
+                await renderizarTablaUsuarios(); 
+            } catch (error) {
+                console.error("Error eliminando usuario de Firestore:", error);
+                alert("Error al eliminar usuario de la base de datos de la app.");
+            }
+        }
+    }
+
+
+    // --- GESTIÓN DE CUADERNOS (ADMIN) ---
+    // Las funciones de cuadernos, novedades, checklist, etc., se migrarán en el siguiente paso.
+    // Por ahora, se dejan las funciones placeholder para que la estructura no se rompa.
+    
     function popularSelectUsuariosOperarios(selectedUserIds = []) {
         if (!cuadernoUsuariosAsignadosContainer) return;
         cuadernoUsuariosAsignadosContainer.innerHTML = ''; 
-        // 'usuarios' ahora debería estar poblado desde Firestore (por renderizarTablaUsuarios o una carga inicial)
         const operarios = usuarios.filter(u => u.rol === 'operario');
 
         if (operarios.length === 0) {
@@ -519,7 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         operarios.forEach(op => {
-            const checkboxId = `user-assign-${op.uid}`; // Usar uid
+            const checkboxId = `user-assign-${op.uid}`;
             const label = document.createElement('label');
             label.htmlFor = checkboxId;
             label.className = 'flex items-center space-x-2 p-1 hover:bg-slate-100 rounded cursor-pointer';
@@ -527,7 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.id = checkboxId;
-            checkbox.value = op.uid; // Usar uid
+            checkbox.value = op.uid;
             checkbox.className = 'form-checkbox h-4 w-4 text-sky-600 border-slate-300 rounded focus:ring-sky-500';
             if (selectedUserIds.includes(op.uid)) {
                 checkbox.checked = true;
@@ -539,7 +558,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function popularSelectorColorCuaderno(claseColorSeleccionada = '') { /* ... (sin cambios) ... */ 
+    function popularSelectorColorCuaderno(claseColorSeleccionada = '') { 
         if (!cuadernoColorSelect) return;
         cuadernoColorSelect.innerHTML = ''; 
         COLORES_CUADERNO.forEach(color => {
@@ -555,13 +574,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function toggleFormularioCuaderno(mostrar = true, firestoreDocId = null) { 
         if (mostrar) {
-            editandoCuadernoId = firestoreDocId; 
+            editandoCuadernoFirestoreId = firestoreDocId; 
             let cuadernoParaEditar = null;
             if (firestoreDocId) {
                 try {
                     const docSnap = await db.collection(COLECCION_CUADERNOS).doc(firestoreDocId).get();
                     if (docSnap.exists) {
-                        cuadernoParaEditar = { firestoreId: docSnap.id, ...docSnap.data()};
+                        cuadernoParaEditar = { firestoreDocId: docSnap.id, ...docSnap.data()};
                     } else {
                         console.error("Cuaderno para editar no encontrado en Firestore:", firestoreDocId);
                     }
@@ -570,8 +589,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             formCuadernoTitle.textContent = cuadernoParaEditar ? 'Editar Cuaderno' : 'Agregar Nuevo Cuaderno';
             
-            cuadernoIdInput.value = cuadernoParaEditar ? cuadernoParaEditar.id : ''; 
-            cuadernoIdInput.readOnly = !!cuadernoParaEditar; 
+            cuadernoIdManualInput.value = cuadernoParaEditar ? cuadernoParaEditar.id : ''; 
+            cuadernoIdManualInput.readOnly = !!cuadernoParaEditar; 
             
             cuadernoNombreInput.value = cuadernoParaEditar ? cuadernoParaEditar.nombre : '';
             cuadernoTipoSelect.value = cuadernoParaEditar ? cuadernoParaEditar.tipo : 'novedades'; 
@@ -603,24 +622,21 @@ document.addEventListener('DOMContentLoaded', () => {
             cuadernoEmailsTodoRealizadoInput.value = cuadernoParaEditar ? (cuadernoParaEditar.emailsTodoRealizado || '') : '';
             cuadernoEmailsConPendientesInput.value = cuadernoParaEditar ? (cuadernoParaEditar.emailsConPendientes || '') : '';
 
-            // Popular usuarios asignados requiere que 'usuarios' (con UIDs) esté cargado
-            // Si usuarios no está cargado aún, se podría llamar a renderizarTablaUsuarios o similar
-            // o asegurar que se cargue antes.
-            if (usuarios.length === 0) { // Cargar usuarios si no están disponibles
+            if (usuarios.length === 0) { 
                 const usuariosSnapshot = await db.collection(COLECCION_USUARIOS).get();
                 usuarios = usuariosSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
             }
             popularSelectUsuariosOperarios(cuadernoParaEditar ? (cuadernoParaEditar.usuariosAsignados || []) : []);
 
 
-            cuadernoIdToEditInput.value = editandoCuadernoId || ''; 
+            cuadernoIdToEditInput.value = editandoCuadernoFirestoreId || ''; 
             formNuevoCuadernoContainer.classList.remove('hidden-view');
             cuadernoFormError.textContent = '';
         } else {
             formNuevoCuadernoContainer.classList.add('hidden-view');
             formCuaderno.reset();
-            editandoCuadernoId = null;
-            cuadernoIdInput.readOnly = false;
+            editandoCuadernoFirestoreId = null;
+            cuadernoIdManualInput.readOnly = false;
             if (cuadernoUsuariosAsignadosContainer) cuadernoUsuariosAsignadosContainer.innerHTML = '';
             if (cuadernoTareasChecklistContainer) cuadernoTareasChecklistContainer.classList.add('hidden-view');
             if (emailConfigUnificadoDiv) emailConfigUnificadoDiv.classList.remove('hidden-view'); 
@@ -629,39 +645,26 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
-
-    // TODO: Migrar renderizarTablaCuadernos, handleGuardarCuaderno, handleEditarCuadernoClick, handleEliminarCuadernoClick a Firestore
-    // TODO: Migrar toda la lógica de operario (dashboards, detalle, guardar novedad/checklist) a Firestore
-    // TODO: Migrar toda la lógica de supervisor (tablero, gestión, detalles) a Firestore
-    // TODO: Migrar simularEnvioEmail para leer cuadernos de Firestore si es necesario dentro de la función
-
-
-    // --- Funciones PLACEHOLDER para el resto (serán reemplazadas por lógica de Firestore) ---
+    
+    // --- PLACEHOLDERS (SE MIGRARÁN LUEGO) ---
     function renderizarTablaCuadernos() { if(tablaCuadernosBody) tablaCuadernosBody.innerHTML = '<tr><td colspan="6">Funcionalidad de Cuadernos en desarrollo con Firebase.</td></tr>';}
     async function handleGuardarCuaderno(event) { event.preventDefault(); alert("Guardar Cuaderno con Firebase: Pendiente de implementación completa."); }
-    async function handleEditarCuadernoClick(firestoreDocId) { await toggleFormularioCuaderno(true, firestoreDocId); /* alert("Editar Cuaderno con Firebase: Pendiente de implementación completa."); */ }
+    async function handleEditarCuadernoClick(firestoreDocId) { await toggleFormularioCuaderno(true, firestoreDocId); }
     async function handleEliminarCuadernoClick(firestoreDocId) { alert("Eliminar Cuaderno con Firebase: Pendiente de implementación completa.");}
-
     function renderizarDashboardOperario() { if(operarioCuadernosContainer) operarioCuadernosContainer.innerHTML = '<p>Funcionalidad de Operario en desarrollo con Firebase.</p>';}
     async function mostrarDetalleCuadernoOperario(cuadernoFirestoreId, cuadernoNombre, vistaDeRetorno) { alert(`Mostrar Detalles para ${cuadernoNombre} con Firebase: Pendiente.`); if (vistaDeRetorno) mostrarVista(vistaDeRetorno);}
     function renderizarNovedadesDeCuaderno(cuadernoFirestoreId) { /* ... */ }
     function abrirFormularioNovedad(cuadernoFirestoreId, cuadernoNombre) { alert(`Abrir Form Novedad para ${cuadernoNombre} con Firebase: Pendiente.`);}
     function cerrarFormularioNovedad() { if (formNovedadModal) formNovedadModal.style.display = 'none'; }
     async function handleGuardarNovedad(event) { event.preventDefault(); alert("Guardar Novedad con Firebase: Pendiente."); }
-    
     function renderizarSupervisorGestionNovedadesView() { if(supervisorGestionCuadernosContainer) supervisorGestionCuadernosContainer.innerHTML = '<p>Gestión Supervisor en desarrollo con Firebase.</p>';}
     async function renderizarDashboardSupervisor() { if(supervisorGridNovedadesBody) supervisorGridNovedadesBody.innerHTML = '<tr><td colspan="5">Tablero Supervisor con Firebase: Pendiente.</td></tr>';}
     async function mostrarDetallesNovedadesParaSupervisor(cuadernoFirestoreId, cuadernoNombre, fecha, tipoCuaderno) { alert(`Mostrar Detalles Supervisor para ${cuadernoNombre} con Firebase: Pendiente.`);}
-    
     function renderizarFormularioChecklist(cuaderno) { if(listaTareasChecklist) listaTareasChecklist.innerHTML = '<p>Formulario Checklist con Firebase: Pendiente.</p>';}
     async function handleGuardarChecklist(event) { event.preventDefault(); alert("Guardar Checklist con Firebase: Pendiente.");}
     function renderizarHistorialChecklists(cuadernoFirestoreId) { if(historialChecklistsCuaderno) historialChecklistsCuaderno.innerHTML = '<p>Historial Checklist con Firebase: Pendiente.</p>';}
-    
     function simularEnvioEmail(entrada, tipoEntrada = 'novedad') {
-        // Esta función debería poder seguir funcionando si 'cuadernos' está poblado
-        // y la 'entrada' tiene 'cuadernoId'. El cuaderno podría buscarse en el array local 'cuadernos'
-        // que se carga desde Firestore.
-        const cuaderno = cuadernos.find(c => c.id === entrada.cuadernoId || c.firestoreId === entrada.cuadernoId); // Comparar con ambos IDs
+        const cuaderno = cuadernos.find(c => c.firestoreId === entrada.cuadernoId || c.id === entrada.cuadernoId); 
         if (!cuaderno) {
             console.error("Simular Email: Cuaderno no encontrado para la entrada:", entrada);
              if (emailSimulacionModal) {
@@ -672,7 +675,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             return;
         }
-        // ... resto de la lógica de simularEnvioEmail sin cambios ...
         let destinatarios = '';
         if (entrada.calificacion === CALIFICACIONES_UNIFICADAS.TODO_REALIZADO) {
             destinatarios = cuaderno.emailsTodoRealizado;
@@ -755,6 +757,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } 
     }
 
+
     // --- INICIALIZACIÓN Y EVENT LISTENERS ---
     if (loginForm) loginForm.addEventListener('submit', handleLogin);
     if (logoutButton) logoutButton.addEventListener('click', handleLogout);
@@ -782,7 +785,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 cuadernoTareasChecklistContainer.classList.toggle('hidden-view', !esChecklist);
             }
             if (emailConfigUnificadoDiv) emailConfigUnificadoDiv.classList.remove('hidden-view');
-            if (emailConfigNovedadesDiv && emailConfigNovedadesDiv.id === 'emailConfigNovedades') { // Verificación adicional
+            if (emailConfigNovedadesDiv && emailConfigNovedadesDiv.id === 'emailConfigNovedades') { 
                  emailConfigNovedadesDiv.classList.add('hidden-view');
             }
         });
