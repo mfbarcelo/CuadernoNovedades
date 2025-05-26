@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const emailSimDestinatarios = document.getElementById('emailSimDestinatarios');
     const emailSimAsunto = document.getElementById('emailSimAsunto');
     const emailSimCuerpo = document.getElementById('emailSimCuerpo');
-    const closeEmailSimulacionModalBtn = document.getElementById('closeEmailSimulacionModal');
+    const closeEmailSimulacionModalBtn = document.getElementById('closeEmailSimulacionModal'); // Corregido, antes era el mismo ID
     const okEmailSimulacionModalBtn = document.getElementById('okEmailSimulacionModal');
     const loginForm = document.getElementById('loginForm');
     const logoutButton = document.getElementById('logoutButton');
@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("Iniciando carga de datos globales desde Firestore...");
             const cuadernosSnapshot = await db.collection(COLECCION_CUADERNOS).orderBy("nombre").get(); 
             cuadernos = cuadernosSnapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
-            console.log("Cuadernos cargados:", cuadernos.length, JSON.parse(JSON.stringify(cuadernos))); // Log para ver la data
+            console.log("Cuadernos cargados:", cuadernos.length, JSON.parse(JSON.stringify(cuadernos))); 
             
             if (cuadernosSnapshot.empty && currentUser && currentUser.rol === 'admin') { 
                 console.log("No hay cuadernos en Firestore, creando datos semilla...");
@@ -569,6 +569,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- GESTIÓN DE CUADERNOS (ADMIN) ---
+    function popularSelectUsuariosOperarios(selectedUserIds = []) {
+        if (!cuadernoUsuariosAsignadosContainer) return;
+        cuadernoUsuariosAsignadosContainer.innerHTML = ''; 
+        // Asegurar que 'usuarios' (con UIDs) esté poblado
+        const operarios = usuarios.filter(u => u.rol === 'operario');
+
+        if (operarios.length === 0) {
+            cuadernoUsuariosAsignadosContainer.innerHTML = '<p class="text-sm text-slate-500">No hay usuarios operarios para asignar.</p>';
+            return;
+        }
+
+        operarios.forEach(op => {
+            const checkboxId = `user-assign-${op.uid}`;
+            const label = document.createElement('label');
+            label.htmlFor = checkboxId;
+            label.className = 'flex items-center space-x-2 p-1 hover:bg-slate-100 rounded cursor-pointer';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = checkboxId;
+            checkbox.value = op.uid;
+            checkbox.className = 'form-checkbox h-4 w-4 text-sky-600 border-slate-300 rounded focus:ring-sky-500';
+            if (selectedUserIds.includes(op.uid)) {
+                checkbox.checked = true;
+            }
+            
+            label.appendChild(checkbox);
+            label.appendChild(document.createTextNode(`${op.nombreCompleto} (${op.email})`));
+            cuadernoUsuariosAsignadosContainer.appendChild(label);
+        });
+    }
+
     function popularSelectorColorCuaderno(claseColorSeleccionada = '') { 
         if (!cuadernoColorSelect) return;
         cuadernoColorSelect.innerHTML = ''; 
@@ -675,8 +707,9 @@ document.addEventListener('DOMContentLoaded', () => {
         tablaCuadernosBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center">Cargando cuadernos...</td></tr>';
         
         try {
-            // Ya no se llama a cargarDatosGlobales() aquí, se asume que está actualizado
-            // por onAuthStateChanged o después de una operación de guardado/eliminación.
+            // 'cuadernos' se carga en cargarDatosGlobales
+            // Si es necesario un refresco forzado, se puede llamar a cargarDatosGlobales() aquí.
+            // await cargarDatosGlobales(); 
 
             tablaCuadernosBody.innerHTML = ''; 
             if (cuadernos.length === 0) {
@@ -1003,8 +1036,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const nuevaNovedad = {
-            // No generar firestoreDocId aquí, Firestore lo hará
-            cuadernoId: cuadernoIdManual, // Referencia al ID manual del cuaderno
+            cuadernoId: cuadernoIdManual, 
             usuarioId: currentUser.uid,
             nombreUsuario: currentUser.nombreCompleto,
             fecha: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }), 
@@ -1018,7 +1050,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const docRef = await db.collection(COLECCION_NOVEDADES).add(nuevaNovedad);
             console.log("Nueva novedad guardada en Firestore con ID: ", docRef.id);
             
-            // Actualizar array local para reflejar el cambio inmediatamente
             novedades.push({ firestoreDocId: docRef.id, ...nuevaNovedad });
             novedades.sort((a, b) => new Date(b.fecha.split('/').reverse().join('-') + 'T' + b.hora) - new Date(a.fecha.split('/').reverse().join('-') + 'T' + a.hora));
 
@@ -1045,62 +1076,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // --- FUNCIONALIDAD DEL SUPERVISOR ---
-    // ... (renderizarSupervisorGestionNovedadesView, getCalificacionColorClass, getCalificacionAbreviatura, renderizarDashboardSupervisor, mostrarDetallesNovedadesParaSupervisor sin cambios significativos) ...
-    // ... (Solo asegurarse que usen los datos de los arrays globales que se cargan desde Firestore)
-
-    // --- FUNCIONALIDAD CHECKLIST ---
-    // ... (renderizarFormularioChecklist, handleGuardarChecklist, renderizarHistorialChecklists)
-    // ... (Estas funciones también necesitarán ser adaptadas para leer/escribir en Firestore)
-    // ... (y para usar el ID manual del cuaderno para filtrar/asociar)
-
-    // --- SIMULACIÓN DE EMAIL ---
-    // ... (simularEnvioEmail sin cambios, asume que 'cuadernos' está poblado) ...
-
-
-    // --- INICIALIZACIÓN Y EVENT LISTENERS ---
-    // ... (sin cambios) ...
-
-    // La llamada a mostrarVista(VISTAS.LOGIN) se maneja por onAuthStateChanged.
-    // Inicializar datos globales no se llama aquí, sino después de que el usuario se autentique.
-    
-    // --- CÓDIGO RESTANTE (FUNCIONES PLACEHOLDER Y LISTENERS) ---
-    // ... (Mantener el resto del código como estaba en la versión anterior, 
-    //      ya que este cambio se enfoca en la gestión de cuadernos y el login) ...
-    function parseTareasDefinicion(textoTareas) {
-        const lineas = textoTareas.split('\n').map(l => l.trim());
-        const familias = [];
-        let familiaActual = null;
-
-        lineas.forEach(linea => {
-            if (linea.startsWith('## ')) {
-                if (familiaActual && familiaActual.tareas.length > 0) { 
-                    familias.push(familiaActual);
-                }
-                familiaActual = {
-                    nombreFamilia: linea.substring(3).trim(), 
-                    tareas: []
-                };
-            } else if (linea && familiaActual) { 
-                familiaActual.tareas.push(linea);
-            } else if (linea && !familiaActual) { 
-                 if (familias.length === 0 || (familias.length > 0 && familias[familias.length-1].nombreFamilia !== "Tareas Generales")) { 
-                    familiaActual = { nombreFamilia: "Tareas Generales", tareas: [linea] };
-                 } else if (familias.length > 0 && familias[familias.length-1].nombreFamilia === "Tareas Generales") { 
-                    familias[familias.length-1].tareas.push(linea);
-                 } else { 
-                    familiaActual = { nombreFamilia: "Tareas Generales", tareas: [linea] };
-                 }
-            }
-        });
-        if (familiaActual && familiaActual.tareas.length > 0) { 
-             familias.push(familiaActual);
-        }
-        if (familias.length === 0 && familiaActual && familiaActual.nombreFamilia === "Tareas Generales" && familiaActual.tareas.length > 0) {
-            familias.push(familiaActual);
-        }
-        return familias.filter(f => f.nombreFamilia && f.tareas.length > 0); 
-    }
-    function renderizarSupervisorGestionNovedadesView() { 
+    async function renderizarSupervisorGestionNovedadesView() { 
         if (!supervisorGestionCuadernosContainer || !currentUser || currentUser.rol !== 'supervisor') {
             if(supervisorGestionWelcomeMessage) supervisorGestionWelcomeMessage.textContent = 'Acceso denegado o no eres supervisor.';
             if(supervisorGestionCuadernosContainer) supervisorGestionCuadernosContainer.innerHTML = '';
@@ -1110,7 +1086,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if(supervisorGestionWelcomeMessage) supervisorGestionWelcomeMessage.textContent = `Bienvenido, ${currentUser.nombreCompleto}. Selecciona un cuaderno para gestionar sus novedades:`;
         supervisorGestionCuadernosContainer.innerHTML = ''; 
 
-        if (cuadernos.length === 0) { // Usa el array 'cuadernos' global
+        // 'cuadernos' ya debería estar cargado desde cargarDatosGlobales
+        if (cuadernos.length === 0) { 
             supervisorGestionCuadernosContainer.innerHTML = '<p class="text-slate-600">No hay cuadernos configurados en el sistema.</p>';
             return;
         }
@@ -1187,9 +1164,10 @@ document.addEventListener('DOMContentLoaded', () => {
         let totalNovedadesHoy = 0; 
 
         // Asegurar que cuadernos, novedades y checklistEntradas estén cargados
-        if (cuadernos.length === 0 || novedades.length === 0 && checklistEntradas.length === 0) {
+        if (cuadernos.length === 0 || (novedades.length === 0 && checklistEntradas.length === 0 && currentUser)) { // Solo recargar si hay usuario y datos potencialmente faltantes
             await cargarDatosGlobales();
         }
+
 
         cuadernos.forEach(cuaderno => {
             const tr = document.createElement('tr');
@@ -1206,13 +1184,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (cuaderno.tipo === 'checklist') {
                     entradasDelTurno = checklistEntradas.filter(ce => 
-                        ce.cuadernoId === cuaderno.id && // Comparar con el ID manual del cuaderno
+                        ce.cuadernoId === cuaderno.id && 
                         ce.fecha === fechaFormateadaParaComparar &&
                         ce.turno === turno
                     );
                 } else { 
                     entradasDelTurno = novedades.filter(n => 
-                        n.cuadernoId === cuaderno.id && // Comparar con el ID manual del cuaderno
+                        n.cuadernoId === cuaderno.id && 
                         n.fecha === fechaFormateadaParaComparar &&
                         n.turno === turno
                     );
@@ -1268,7 +1246,7 @@ document.addEventListener('DOMContentLoaded', () => {
             detalleNovedadesModal.style.display = 'flex';
             return;
         }
-        const cuadernoIdManual = cuaderno.id; // Usar el ID manual para filtrar novedades/checklists
+        const cuadernoIdManual = cuaderno.id; 
 
         detalleNovedadesTitle.textContent = `Detalles de "${cuadernoNombre}" (${tipoCuaderno === 'checklist' ? 'Checklist' : 'Novedades'}) - Fecha: ${fecha}`;
         detalleNovedadesContent.innerHTML = ''; 
