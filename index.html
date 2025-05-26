@@ -11,40 +11,50 @@
         .hidden-view {
             display: none;
         }
-        /* Estilos adicionales si son necesarios */
         body {
-            font-family: 'Inter', sans-serif; /* Fuente agradable */
+            font-family: 'Inter', sans-serif; 
+            position: relative; 
+            z-index: 0; 
         }
-        /* Estilo para selectores múltiples (si se usa) */
+        body::before {
+            content: "";
+            position: fixed; 
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('watermark-lab.png'); 
+            background-repeat: no-repeat;
+            background-position: center center;
+            background-size: contain; 
+            opacity: 0.05; 
+            z-index: -1; 
+            pointer-events: none; 
+        }
         .multi-select-container {
-            height: 120px; /* Ajustar según sea necesario */
+            height: 120px; 
             overflow-y: auto;
-            border: 1px solid #e2e8f0; /* slate-300 */
-            border-radius: 0.375rem; /* rounded-lg */
-            padding: 0.5rem; /* p-2 */
+            border: 1px solid #e2e8f0; 
+            border-radius: 0.375rem; 
+            padding: 0.5rem; 
         }
         .multi-select-container label {
             display: block;
-            margin-bottom: 0.25rem; /* mb-1 */
+            margin-bottom: 0.25rem; 
             cursor: pointer;
         }
          .multi-select-container label:hover {
-            background-color: #f1f5f9; /* slate-100 */
+            background-color: #f1f5f9; 
         }
-        .novedad-card { /* Para borde izquierdo coloreado */
+        .novedad-card { 
             border-left-width: 4px;
         }
-        /* Clases para borde de tarjeta y badges de calificación */
-        .calificacion-Con-tareas-pendientes { border-left-color: #ef4444; /* red-500 */ }
-        .calificacion-Todo-realizado { border-left-color: #22c55e; /* green-500 */ }
-        /* Fallback para calificaciones antiguas si aún existen en datos viejos, aunque la lógica las ignorará */
+        .calificacion-Con-tareas-pendientes { border-left-color: #ef4444; }
+        .calificacion-Todo-realizado { border-left-color: #22c55e; }
         .calificacion-Malo { border-left-color: #ef4444; }
         .calificacion-Regular { border-left-color: #f59e0b; }
         .calificacion-Bueno { border-left-color: #22c55e; }
         .calificacion-Muy-Bueno { border-left-color: #3b82f6; }
-
-
-        /* Estilos para la celda de calificación del supervisor */
         .calificacion-cell {
             width: 2rem; 
             height: 2rem; 
@@ -60,8 +70,30 @@
             text-align: center;
             font-weight: bold;
         }
-
     </style>
+
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+
+    <script>
+      // TODO: Reemplaza esto con la configuración de Firebase de tu proyecto
+      const firebaseConfig = {
+        apiKey: "AIzaSyCdzp18gx4thlTzPpaWa_yi2NL3g9VC5Zg",
+        authDomain: "cuadernonovedades-63326.firebaseapp.com",
+        projectId: "cuadernonovedades-63326",
+        storageBucket: "cuadernonovedades-63326.firebasestorage.app",
+        messagingSenderId: "525819434924",
+        appId: "1:525819434924:web:c32d521bf901c2a4b84c09",
+        measurementId: "G-48T77EVJ8Q"
+      };
+
+      // Inicializar Firebase
+      firebase.initializeApp(firebaseConfig);
+      const auth = firebase.auth();
+      const db = firebase.firestore();
+    </script>
+
 </head>
 <body class="bg-slate-100 text-slate-800">
 
@@ -84,14 +116,14 @@
             <h2 class="text-3xl font-bold text-center text-sky-600 mb-8">Iniciar Sesión</h2>
             <form id="loginForm">
                 <div class="mb-6">
-                    <label for="username" class="block text-slate-700 text-sm font-semibold mb-2">Usuario:</label>
-                    <input type="text" id="username" name="username" required
+                    <label for="loginEmail" class="block text-slate-700 text-sm font-semibold mb-2">Email:</label>
+                    <input type="email" id="loginEmail" name="loginEmail" required
                            class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500 transition duration-150"
-                           placeholder="Ej: admin">
+                           placeholder="tu@email.com">
                 </div>
                 <div class="mb-8">
-                    <label for="password" class="block text-slate-700 text-sm font-semibold mb-2">Contraseña:</label>
-                    <input type="password" id="password" name="password" required
+                    <label for="loginPassword" class="block text-slate-700 text-sm font-semibold mb-2">Contraseña:</label>
+                    <input type="password" id="loginPassword" name="loginPassword" required
                            class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500 transition duration-150"
                            placeholder="••••••••">
                 </div>
@@ -126,19 +158,18 @@
             <div id="formNuevoUsuarioContainer" class="hidden-view mb-6 p-6 bg-slate-50 rounded-lg shadow">
                 <h3 id="formUsuarioTitle" class="text-xl font-semibold text-sky-700 mb-4">Agregar Nuevo Usuario</h3>
                 <form id="formUsuario">
-                    <input type="hidden" id="usuarioIdToEdit">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input type="hidden" id="usuarioIdToEdit"> <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label for="usuarioUsername" class="block text-sm font-medium text-slate-700 mb-1">Nombre de Usuario (login):</label>
-                            <input type="text" id="usuarioUsername" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500">
+                            <label for="usuarioEmail" class="block text-sm font-medium text-slate-700 mb-1">Email del Usuario:</label>
+                            <input type="email" id="usuarioEmail" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500">
                         </div>
                         <div>
                             <label for="usuarioNombreCompleto" class="block text-sm font-medium text-slate-700 mb-1">Nombre Completo:</label>
                             <input type="text" id="usuarioNombreCompleto" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500">
                         </div>
                         <div>
-                            <label for="usuarioPassword" class="block text-sm font-medium text-slate-700 mb-1">Contraseña:</label>
-                            <input type="password" id="usuarioPassword" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500">
+                            <label for="usuarioPassword" class="block text-sm font-medium text-slate-700 mb-1">Contraseña (para nuevo usuario):</label>
+                            <input type="password" id="usuarioPassword" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500">
                         </div>
                         <div>
                             <label for="usuarioRol" class="block text-sm font-medium text-slate-700 mb-1">Rol:</label>
@@ -160,8 +191,7 @@
                 <table class="min-w-full bg-white border border-slate-200 rounded-lg">
                     <thead class="bg-slate-200">
                         <tr>
-                            <th class="py-3 px-4 border-b text-left text-sm font-semibold text-slate-700">ID</th>
-                            <th class="py-3 px-4 border-b text-left text-sm font-semibold text-slate-700">Usuario</th>
+                            <th class="py-3 px-4 border-b text-left text-sm font-semibold text-slate-700">Email</th>
                             <th class="py-3 px-4 border-b text-left text-sm font-semibold text-slate-700">Nombre Completo</th>
                             <th class="py-3 px-4 border-b text-left text-sm font-semibold text-slate-700">Rol</th>
                             <th class="py-3 px-4 border-b text-left text-sm font-semibold text-slate-700">Acciones</th>
