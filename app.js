@@ -185,7 +185,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 cuadernos = snapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
             }
 
-            // Simplificar query para evitar error de índice, ordenar en cliente si es necesario después
             const novedadesSnapshot = await db.collection(COLECCION_NOVEDADES).orderBy("fecha", "desc").get();
             novedades = novedadesSnapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
 
@@ -310,8 +309,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // Guardar las credenciales del admin actual si es un admin y si se usó el formulario de login
-            // Esto es para el re-login después de crear un usuario.
             if (currentUser.rol === 'admin' && loginForm.elements.loginEmail.value && loginForm.elements.loginPassword.value && !adminCredentials) {
                  adminCredentials = { email: loginForm.elements.loginEmail.value, password: loginForm.elements.loginPassword.value };
                  console.log("Credenciales de admin capturadas para re-login.");
@@ -350,13 +347,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             console.log(`Intentando iniciar sesión con email: ${emailInput}`);
-            // Guardar credenciales temporalmente para el posible re-login del admin
             adminCredentials = { email: emailInput, password: passwordInput };
 
             await auth.signInWithEmailAndPassword(emailInput, passwordInput);
-            // onAuthStateChanged se encargará de la redirección y carga de datos.
-            // No limpiar adminCredentials aquí, se usará si el admin crea un usuario.
-            // loginForm.reset(); // No resetear aquí, esperar a onAuthStateChanged
+            // loginForm.reset(); // No resetear aquí, onAuthStateChanged se encarga de la UI
         } catch (error) {
             console.error("Error de inicio de sesión:", error.code, error.message);
             let friendlyMessage = "Email o contraseña incorrectos.";
@@ -366,14 +360,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 friendlyMessage = "El formato del email no es válido.";
             }
             loginError.textContent = friendlyMessage;
-            adminCredentials = null; // Limpiar si el login falla
+            adminCredentials = null; 
         }
     }
 
     async function handleLogout() {
         try {
             await auth.signOut();
-            loginForm.reset(); // Resetear el formulario de login al cerrar sesión
+            loginForm.reset(); 
         } catch (error) {
             console.error("Error al cerrar sesión:", error);
         }
@@ -457,7 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const adminEmailActual = adminCredentials ? adminCredentials.email : null;
+        const adminEmailActual = adminCredentials ? adminCredentials.email : (currentUser ? currentUser.email : null);
         const adminPasswordActual = adminCredentials ? adminCredentials.password : null;
 
 
@@ -490,17 +484,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 console.log("Información adicional del usuario guardada en Firestore");
 
-                // Re-autenticar al administrador
                 if (adminEmailActual && adminPasswordActual) {
                     console.log("Re-autenticando al administrador...");
                     await auth.signInWithEmailAndPassword(adminEmailActual, adminPasswordActual);
                     console.log("Administrador re-autenticado.");
-                    // onAuthStateChanged debería manejar la actualización de currentUser al admin
-                    // y recargar los datos.
                 } else {
                     console.warn("No se pudieron obtener las credenciales del admin para re-autenticar. El admin podría necesitar re-loguearse.");
-                    await auth.signOut(); // Forzar logout para que el admin re-loguee
-                    return; 
+                    // No forzar logout aquí, onAuthStateChanged debería manejar el estado del nuevo usuario si el re-login del admin falla.
                 }
             }
             await renderizarTablaUsuarios(); 
@@ -514,12 +504,15 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 usuarioFormError.textContent = 'Error al guardar usuario: ' + error.message;
             }
-             // Si hubo un error creando el usuario en Auth, y el admin se deslogueó, re-loguear admin
+            // Si hubo un error creando el usuario en Auth, y el admin se deslogueó (porque createUserWithEmailAndPassword loguea al nuevo), re-loguear admin
             if (auth.currentUser && auth.currentUser.email !== adminEmailActual && adminEmailActual && adminPasswordActual) {
                 try {
+                    console.log("Intentando re-loguear admin después de fallo...");
                     await auth.signInWithEmailAndPassword(adminEmailActual, adminPasswordActual);
                 } catch (reloginError) {
                     console.error("Error re-logueando admin después de fallo en creación de usuario:", reloginError);
+                    // Si falla el re-login del admin, es mejor desloguear todo para evitar inconsistencias.
+                    await auth.signOut(); 
                 }
             }
         }
@@ -651,7 +644,10 @@ document.addEventListener('DOMContentLoaded', () => {
         tablaCuadernosBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center">Cargando cuadernos...</td></tr>';
         
         try {
-            await cargarDatosGlobales(); // Asegurar que los cuadernos estén actualizados
+            // Asegurar que los cuadernos estén cargados desde cargarDatosGlobales
+            if (cuadernos.length === 0 && currentUser) { 
+                 await cargarDatosGlobales(); // Esto ya carga 'cuadernos'
+            }
 
             tablaCuadernosBody.innerHTML = ''; 
             if (cuadernos.length === 0) {
@@ -659,6 +655,9 @@ document.addEventListener('DOMContentLoaded', () => {
                  return;
             }
 
+            // Asegurar que 'usuarios' esté poblado para mostrar nombres asignados
+            // (ya debería estar cargado si el admin está viendo esta tabla,
+            // pero una comprobación extra no hace daño)
             if (usuarios.length === 0 && currentUser && currentUser.rol === 'admin') {
                 const usuariosSnapshot = await db.collection(COLECCION_USUARIOS).get();
                 usuarios = usuariosSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
@@ -741,16 +740,14 @@ document.addEventListener('DOMContentLoaded', () => {
             emailsConPendientes, 
             usuariosAsignados: usuariosAsignadosSeleccionados
         };
-        delete datosCuaderno.emailsMalo; delete datosCuaderno.emailsRegular; 
-        delete datosCuaderno.emailsBueno; delete datosCuaderno.emailsMuyBueno;
-
+        // No es necesario eliminar las propiedades antiguas de email si no existen en datosCuaderno
 
         try {
             if (editandoCuadernoFirestoreId) { 
                 await db.collection(COLECCION_CUADERNOS).doc(editandoCuadernoFirestoreId).update(datosCuaderno);
                 console.log("Cuaderno actualizado en Firestore:", editandoCuadernoFirestoreId);
             } else {
-                const docRef = db.collection(COLECCION_CUADERNOS).doc(idManual);
+                const docRef = db.collection(COLECCION_CUADERNOS).doc(idManual); // Usar idManual como ID del documento
                 const docSnap = await docRef.get();
                 if (docSnap.exists) {
                     cuadernoFormError.textContent = 'El ID del cuaderno ya existe. Debe ser único.';
