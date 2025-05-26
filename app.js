@@ -113,7 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let editandoCuadernoFirestoreId = null; 
     let cuadernoActualOperario = null;  
     let vistaAnteriorParaDetalleCuaderno = null; 
-    let adminCredentials = null; // Para re-autenticar al admin después de crear un usuario
+    let adminCredentials = null; 
 
     const VISTAS = {
         LOGIN: 'loginView',
@@ -280,8 +280,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log("onAuthStateChanged: currentUser establecido desde Firestore:", currentUser);
             } else {
                 console.warn(`onAuthStateChanged: Documento para usuario ${user.uid} no encontrado en Firestore.`);
-                // CAMBIA "admin@ejemplo.com" AL EMAIL EXACTO DE TU ADMIN EN FIREBASE AUTH
-                if (user.email === "mfbarcelo@gmail.com") { // ¡¡IMPORTANTE: AJUSTA ESTE EMAIL!!
+                // CAMBIA "mfbarcelo@gmail.com" AL EMAIL EXACTO DE TU ADMIN EN FIREBASE AUTH
+                if (user.email === "mfbarcelo@gmail.com") { 
                      console.log("Intentando establecer rol de admin para el usuario semilla.");
                      try {
                         const adminData = {
@@ -306,18 +306,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // Guardar las credenciales del admin actual si es un admin
-            if (currentUser.rol === 'admin' && adminCredentials === null) {
-                const adminEmail = document.getElementById('loginEmail').value;
-                const adminPassword = document.getElementById('loginPassword').value;
-                if (adminEmail && adminPassword) { // Solo si se usaron para el login actual
-                    adminCredentials = { email: adminEmail, password: adminPassword };
-                } else if (currentUser.email === "mfbarcelo@gmail.com") { // Email semilla
-                    // Para la demo, si es el admin semilla y no tenemos creds, podemos hardcodearlas
-                    // ¡¡NO HACER ESTO EN PRODUCCIÓN!!
-                    // adminCredentials = { email: "mfbarcelo@gmail.com", password: "tu_password_admin_semilla" };
-                    console.warn("Admin semilla logueado, pero no se capturaron credenciales para re-login automático tras crear usuario. El admin deberá re-loguearse manualmente.");
-                }
+            // Guardar las credenciales del admin actual si es un admin y si se usó el formulario de login
+            if (currentUser.rol === 'admin' && loginForm.elements.loginEmail.value && loginForm.elements.loginPassword.value) {
+                 adminCredentials = { email: loginForm.elements.loginEmail.value, password: loginForm.elements.loginPassword.value };
+                 console.log("Credenciales de admin capturadas para re-login.");
             }
 
 
@@ -330,7 +322,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
         } else {
             currentUser = null;
-            adminCredentials = null; // Limpiar credenciales de admin al desloguear
+            adminCredentials = null; 
             cuadernos = []; 
             novedades = [];
             checklistEntradas = [];
@@ -353,16 +345,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             console.log(`Intentando iniciar sesión con email: ${emailInput}`);
-            // Guardar credenciales si es el admin intentando loguearse
-            // (esto es una simplificación para la demo, no ideal para producción)
-            if (emailInput.toLowerCase().includes('admin')) { // O una comprobación más específica
-                 adminCredentials = { email: emailInput, password: passwordInput };
-            } else {
-                adminCredentials = null; // Limpiar si no es admin
-            }
+            // Guardar credenciales temporalmente para el posible re-login del admin
+            adminCredentials = { email: emailInput, password: passwordInput };
 
             await auth.signInWithEmailAndPassword(emailInput, passwordInput);
-            loginForm.reset();
+            // onAuthStateChanged se encargará de la redirección y carga de datos.
+            // No limpiar adminCredentials aquí, se usará si el admin crea un usuario.
+            loginForm.reset(); 
         } catch (error) {
             console.error("Error de inicio de sesión:", error.code, error.message);
             let friendlyMessage = "Email o contraseña incorrectos.";
@@ -462,7 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const adminEmailActual = currentUser ? currentUser.email : null;
+        const adminEmailActual = adminCredentials ? adminCredentials.email : null;
         const adminPasswordActual = adminCredentials ? adminCredentials.password : null;
 
 
@@ -483,12 +472,10 @@ document.addEventListener('DOMContentLoaded', () => {
                      return;
                 }
                 
-                // Crear el nuevo usuario
                 const userCredential = await auth.createUserWithEmailAndPassword(email, password);
                 const newUser = userCredential.user;
                 console.log("Nuevo usuario creado en Firebase Auth:", newUser.uid);
 
-                // Guardar información adicional en Firestore
                 await db.collection(COLECCION_USUARIOS).doc(newUser.uid).set({
                     uid: newUser.uid,
                     email: email,
@@ -497,16 +484,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 console.log("Información adicional del usuario guardada en Firestore");
 
-                // Re-autenticar al administrador si se guardaron sus credenciales
                 if (adminEmailActual && adminPasswordActual) {
                     console.log("Re-autenticando al administrador...");
                     await auth.signInWithEmailAndPassword(adminEmailActual, adminPasswordActual);
                     console.log("Administrador re-autenticado.");
+                    // onAuthStateChanged debería manejar la actualización de currentUser al admin
                 } else {
-                    console.warn("No se pudieron obtener las credenciales del admin para re-autenticar. El admin podría necesitar re-loguearse.");
-                    // Opcionalmente, forzar logout del admin para que re-loguee
-                    // await auth.signOut(); 
-                    // return; // Salir para evitar que la UI cambie al nuevo usuario
+                    console.warn("No se pudieron obtener las credenciales del admin para re-autenticar. El admin podría necesitar re-loguearse o la sesión actual del nuevo usuario persistirá.");
+                    // Si no hay credenciales de admin, el nuevo usuario queda logueado.
+                    // Esto es un comportamiento de Firebase. Para evitarlo, se podría desloguear al nuevo usuario
+                    // y luego forzar un re-login del admin, pero eso es más complejo para la demo.
+                    // O, simplemente, el admin cierra sesión y vuelve a entrar.
                 }
             }
             await renderizarTablaUsuarios(); 
@@ -570,13 +558,86 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- GESTIÓN DE CUADERNOS (ADMIN) ---
+    async function toggleFormularioCuaderno(mostrar = true, firestoreDocId = null) { 
+        if (mostrar) {
+            editandoCuadernoFirestoreId = firestoreDocId; 
+            let cuadernoParaEditar = null;
+            if (firestoreDocId) {
+                try {
+                    const docSnap = await db.collection(COLECCION_CUADERNOS).doc(firestoreDocId).get();
+                    if (docSnap.exists) {
+                        cuadernoParaEditar = { firestoreDocId: docSnap.id, ...docSnap.data()};
+                    } else {
+                        console.error("Cuaderno para editar no encontrado en Firestore:", firestoreDocId);
+                    }
+                } catch(e){ console.error("Error obteniendo cuaderno para editar:", e); }
+            }
+
+            formCuadernoTitle.textContent = cuadernoParaEditar ? 'Editar Cuaderno' : 'Agregar Nuevo Cuaderno';
+            
+            cuadernoIdManualInput.value = cuadernoParaEditar ? cuadernoParaEditar.id : ''; 
+            cuadernoIdManualInput.readOnly = !!cuadernoParaEditar; 
+            
+            cuadernoNombreInput.value = cuadernoParaEditar ? cuadernoParaEditar.nombre : '';
+            cuadernoTipoSelect.value = cuadernoParaEditar ? cuadernoParaEditar.tipo : 'novedades'; 
+            popularSelectorColorCuaderno(cuadernoParaEditar ? cuadernoParaEditar.colorClase : COLORES_CUADERNO[0].clase); 
+
+            const esChecklist = cuadernoTipoSelect.value === 'checklist';
+            if (emailConfigUnificadoDiv) emailConfigUnificadoDiv.classList.remove('hidden-view'); 
+            if (emailConfigNovedadesDiv && emailConfigNovedadesDiv.id === 'emailConfigNovedades') { 
+                 emailConfigNovedadesDiv.classList.add('hidden-view'); 
+            }
+            
+            if (esChecklist) {
+                cuadernoTareasChecklistContainer.classList.remove('hidden-view');
+                let tareasTexto = "";
+                if (cuadernoParaEditar && Array.isArray(cuadernoParaEditar.tareasDefinicion)) {
+                    cuadernoParaEditar.tareasDefinicion.forEach(familia => {
+                        tareasTexto += `## ${familia.nombreFamilia}\n`;
+                        (familia.tareas || []).forEach(tarea => {
+                            tareasTexto += `${tarea}\n`;
+                        });
+                    });
+                }
+                cuadernoTareasDefinicionTextarea.value = tareasTexto.trim();
+            } else {
+                cuadernoTareasChecklistContainer.classList.add('hidden-view');
+                cuadernoTareasDefinicionTextarea.value = '';
+            }
+            
+            cuadernoEmailsTodoRealizadoInput.value = cuadernoParaEditar ? (cuadernoParaEditar.emailsTodoRealizado || '') : '';
+            cuadernoEmailsConPendientesInput.value = cuadernoParaEditar ? (cuadernoParaEditar.emailsConPendientes || '') : '';
+
+            if (usuarios.length === 0 && currentUser && currentUser.rol === 'admin') { 
+                const usuariosSnapshot = await db.collection(COLECCION_USUARIOS).get();
+                usuarios = usuariosSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
+            }
+            popularSelectUsuariosOperarios(cuadernoParaEditar ? (cuadernoParaEditar.usuariosAsignados || []) : []);
+
+
+            cuadernoIdToEditInput.value = editandoCuadernoFirestoreId || ''; 
+            formNuevoCuadernoContainer.classList.remove('hidden-view');
+            cuadernoFormError.textContent = '';
+        } else {
+            formNuevoCuadernoContainer.classList.add('hidden-view');
+            formCuaderno.reset();
+            editandoCuadernoFirestoreId = null;
+            cuadernoIdManualInput.readOnly = false;
+            if (cuadernoUsuariosAsignadosContainer) cuadernoUsuariosAsignadosContainer.innerHTML = '';
+            if (cuadernoTareasChecklistContainer) cuadernoTareasChecklistContainer.classList.add('hidden-view');
+            if (emailConfigUnificadoDiv) emailConfigUnificadoDiv.classList.remove('hidden-view'); 
+            if (emailConfigNovedadesDiv && emailConfigNovedadesDiv.id === 'emailConfigNovedades') {
+                emailConfigNovedadesDiv.classList.add('hidden-view');
+            }
+        }
+    }
+    
     async function renderizarTablaCuadernos() { 
         if (!tablaCuadernosBody) return;
         tablaCuadernosBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center">Cargando cuadernos...</td></tr>';
         
         try {
-            // 'cuadernos' ya debería estar cargado por cargarDatosGlobales()
-            // Si no, recargar aquí (aunque cargarDatosGlobales se llama en onAuthStateChanged):
+            // Asegurar que los cuadernos estén cargados
             if (cuadernos.length === 0 && currentUser) { 
                  await cargarDatosGlobales();
             }
@@ -646,7 +707,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const usuariosAsignadosSeleccionados = [];
         if (cuadernoUsuariosAsignadosContainer) {
             cuadernoUsuariosAsignadosContainer.querySelectorAll('input[type="checkbox"]:checked').forEach(checkbox => {
-                usuariosAsignadosSeleccionados.push(checkbox.value); // Estos son UIDs
+                usuariosAsignadosSeleccionados.push(checkbox.value); 
             });
         }
         
@@ -670,6 +731,12 @@ document.addEventListener('DOMContentLoaded', () => {
             emailsConPendientes, 
             usuariosAsignados: usuariosAsignadosSeleccionados
         };
+        // Eliminar propiedades de email antiguas si existen para limpiar la data
+        delete datosCuaderno.emailsMalo;
+        delete datosCuaderno.emailsRegular;
+        delete datosCuaderno.emailsBueno;
+        delete datosCuaderno.emailsMuyBueno;
+
 
         try {
             if (editandoCuadernoFirestoreId) { 
@@ -694,12 +761,78 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    async function handleEditarCuadernoClick(firestoreDocId) { 
+        await toggleFormularioCuaderno(true, firestoreDocId); 
+    }
+
+    async function handleEliminarCuadernoClick(firestoreDocId) { 
+        const cuadernoAEliminar = cuadernos.find(c => c.firestoreDocId === firestoreDocId);
+        if (!cuadernoAEliminar) {
+            console.error("Cuaderno a eliminar no encontrado en el array local:", firestoreDocId);
+            return;
+        }
+
+        if (confirm(`¿Estás seguro de que quieres eliminar el cuaderno "${cuadernoAEliminar.nombre}"? Esta acción no se puede deshacer y eliminará todas sus novedades y checklists.`)) {
+            try {
+                await db.collection(COLECCION_CUADERNOS).doc(firestoreDocId).delete();
+                
+                const novedadesQuery = db.collection(COLECCION_NOVEDADES).where("cuadernoId", "==", cuadernoAEliminar.id);
+                const novedadesSnap = await novedadesQuery.get();
+                const batchNovedades = db.batch();
+                novedadesSnap.forEach(doc => batchNovedades.delete(doc.ref));
+                await batchNovedades.commit();
+
+                const checklistsQuery = db.collection(COLECCION_CHECKLISTS).where("cuadernoId", "==", cuadernoAEliminar.id);
+                const checklistsSnap = await checklistsQuery.get();
+                const batchChecklists = db.batch();
+                checklistsSnap.forEach(doc => batchChecklists.delete(doc.ref));
+                await batchChecklists.commit();
+
+                console.log("Cuaderno y sus entradas eliminados de Firestore:", firestoreDocId);
+                
+                await cargarDatosGlobales(); 
+                await renderizarTablaCuadernos(); 
+                if (editandoCuadernoFirestoreId === firestoreDocId) {
+                    toggleFormularioCuaderno(false);
+                }
+            } catch (error) {
+                console.error("Error eliminando cuaderno de Firestore:", error);
+                alert("Error al eliminar cuaderno.");
+            }
+        }
+    }
+
     // --- PLACEHOLDERS PARA FUNCIONES RESTANTES ---
-    // ... (Mantener las funciones de popularSelectores, parseTareas, y las de operario/supervisor/checklist/novedades como placeholders por ahora)
-    // ... (El foco de esta actualización es arreglar el login y la gestión básica de usuarios/cuadernos con Firestore)
-    function popularSelectUsuariosOperarios(selectedUserIds = []) { /* ... (mantenida para referencia, necesita 'usuarios' poblado) ... */ }
-    function popularSelectorColorCuaderno(claseColorSeleccionada = '') { /* ... (mantenida) ... */ }
-    function parseTareasDefinicion(textoTareas) { /* ... (mantenida) ... */ }
+    function parseTareasDefinicion(textoTareas) {
+        const lineas = textoTareas.split('\n').map(l => l.trim());
+        const familias = [];
+        let familiaActual = null;
+
+        lineas.forEach(linea => {
+            if (linea.startsWith('## ')) {
+                if (familiaActual) { 
+                    familias.push(familiaActual);
+                }
+                familiaActual = {
+                    nombreFamilia: linea.substring(3).trim(), 
+                    tareas: []
+                };
+            } else if (linea && familiaActual) { 
+                familiaActual.tareas.push(linea);
+            } else if (linea && !familiaActual) { 
+                 if (familias.length === 0 || familias[familias.length-1].nombreFamilia !== "Tareas Generales") { 
+                    familiaActual = { nombreFamilia: "Tareas Generales", tareas: [linea] };
+                    familias.push(familiaActual); 
+                 } else { 
+                    familias[familias.length-1].tareas.push(linea);
+                 }
+            }
+        });
+        if (familiaActual && !familias.includes(familiaActual)) { 
+             familias.push(familiaActual);
+        }
+        return familias.filter(f => f.nombreFamilia && f.tareas.length > 0); 
+    }
     function renderizarDashboardOperario() { if(operarioCuadernosContainer) operarioCuadernosContainer.innerHTML = '<p>Funcionalidad de Operario en desarrollo con Firebase.</p>';}
     async function mostrarDetalleCuadernoOperario(cuadernoFirestoreId, cuadernoNombre, vistaDeRetorno) { alert(`Mostrar Detalles para ${cuadernoNombre} con Firebase: Pendiente.`); if (vistaDeRetorno) mostrarVista(vistaDeRetorno);}
     function renderizarNovedadesDeCuaderno(cuadernoFirestoreId) { /* ... */ }
@@ -778,5 +911,4 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // La llamada a mostrarVista(VISTAS.LOGIN) se maneja por onAuthStateChanged.
 });
