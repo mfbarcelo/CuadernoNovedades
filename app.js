@@ -187,6 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 cuadernos = snapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
             }
 
+            // Simplificar query para evitar error de índice, ordenar en cliente si es necesario después
             const novedadesSnapshot = await db.collection(COLECCION_NOVEDADES).orderBy("fecha", "desc").get();
             novedades = novedadesSnapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
             console.log("Novedades cargadas:", novedades.length);
@@ -313,8 +314,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
+            // Capturar credenciales del admin si es un login de admin y no se han capturado antes
             if (currentUser.rol === 'admin' && loginForm.elements.loginEmail.value && loginForm.elements.loginPassword.value) {
-                 if(!adminCredentials || adminCredentials.email !== loginForm.elements.loginEmail.value) { // Solo si es un nuevo login de admin
+                 if(!adminCredentials || adminCredentials.email !== loginForm.elements.loginEmail.value) { 
                     adminCredentials = { email: loginForm.elements.loginEmail.value, password: loginForm.elements.loginPassword.value };
                     console.log("Credenciales de admin capturadas para re-login.");
                  }
@@ -328,7 +330,7 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (currentUser.rol === 'supervisor') mostrarVista(VISTAS.SUPERVISOR_DASHBOARD);
             else mostrarVista(VISTAS.LOGIN);
             
-            loginForm.reset(); // Resetear formulario de login después de procesar todo
+            loginForm.reset(); 
 
         } else {
             currentUser = null;
@@ -355,19 +357,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             console.log(`Intentando iniciar sesión con email: ${emailInput}`);
-            // Guardar credenciales temporalmente para el posible re-login del admin si es un admin
-            // Esto es una simplificación.
-            if (emailInput === "mfbarcelo@gmail.com") { // O alguna otra forma de identificar al admin
-                adminCredentials = { email: emailInput, password: passwordInput };
-                 console.log("Credenciales de admin capturadas en handleLogin.");
-            } else {
-                adminCredentials = null;
-            }
+            // Guardar credenciales temporalmente para el posible re-login del admin
+            adminCredentials = { email: emailInput, password: passwordInput };
+            console.log("Admin credentials potentially set in handleLogin:", adminCredentials);
 
 
             await auth.signInWithEmailAndPassword(emailInput, passwordInput);
             // onAuthStateChanged se encargará de la redirección y carga de datos.
-            // No resetear el form aquí directamente, onAuthStateChanged lo hará si el login es exitoso.
         } catch (error) {
             console.error("Error de inicio de sesión:", error.code, error.message);
             let friendlyMessage = "Email o contraseña incorrectos.";
@@ -384,14 +380,12 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleLogout() {
         try {
             await auth.signOut();
-            // loginForm.reset(); // onAuthStateChanged mostrará el login y el form estará vacío
         } catch (error) {
             console.error("Error al cerrar sesión:", error);
         }
     }
 
     // --- GESTIÓN DE USUARIOS (ADMIN) ---
-    // ... (sin cambios)
     function toggleFormularioUsuario(mostrar = true, usuarioParaEditar = null) {
         if (mostrar) {
             editandoUsuarioId = usuarioParaEditar ? usuarioParaEditar.uid : null; 
@@ -469,8 +463,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const adminEmailActual = adminCredentials ? adminCredentials.email : null;
-        const adminPasswordActual = adminCredentials ? adminCredentials.password : null;
+        const storedAdminEmail = adminCredentials ? adminCredentials.email : null;
+        const storedAdminPassword = adminCredentials ? adminCredentials.password : null;
 
 
         try {
@@ -502,17 +496,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 console.log("Información adicional del usuario guardada en Firestore");
 
-                if (adminEmailActual && adminPasswordActual) {
+                if (storedAdminEmail && storedAdminPassword) {
                     console.log("Re-autenticando al administrador...");
-                    await auth.signInWithEmailAndPassword(adminEmailActual, adminPasswordActual);
-                    console.log("Administrador re-autenticado.");
-                    // onAuthStateChanged debería manejar la actualización de currentUser al admin
+                    await auth.signInWithEmailAndPassword(storedAdminEmail, storedAdminPassword);
+                    console.log("Administrador re-autenticado. Current user ahora es:", auth.currentUser.email);
                 } else {
                     console.warn("No se pudieron obtener las credenciales del admin para re-autenticar. El admin podría necesitar re-loguearse.");
-                    // Si no hay credenciales de admin, el nuevo usuario queda logueado.
-                    // Para forzar el re-logueo del admin, se podría hacer auth.signOut() aquí,
-                    // pero eso cortaría el flujo del nuevo usuario también.
-                    // La lógica en onAuthStateChanged ya re-dirige según el rol del currentUser.
                 }
             }
             await renderizarTablaUsuarios(); 
@@ -526,15 +515,13 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 usuarioFormError.textContent = 'Error al guardar usuario: ' + error.message;
             }
-            // Si hubo un error creando el usuario en Auth (y el admin se deslogueó porque createUserWithEmailAndPassword loguea al nuevo),
-            // intentar re-loguear al admin.
-            if (auth.currentUser && adminEmailActual && adminPasswordActual && auth.currentUser.email !== adminEmailActual) {
+            if (auth.currentUser && storedAdminEmail && storedAdminPassword && auth.currentUser.email !== storedAdminEmail) {
                 try {
                     console.log("Intentando re-loguear admin después de fallo en creación de usuario...");
-                    await auth.signInWithEmailAndPassword(adminEmailActual, adminPasswordActual);
+                    await auth.signInWithEmailAndPassword(storedAdminEmail, storedAdminPassword);
                 } catch (reloginError) {
                     console.error("Error re-logueando admin después de fallo en creación de usuario:", reloginError);
-                    await auth.signOut(); // Si el re-login falla, desloguear todo.
+                    await auth.signOut(); 
                 }
             }
         }
@@ -587,6 +574,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- GESTIÓN DE CUADERNOS (ADMIN) ---
+    function popularSelectUsuariosOperarios(selectedUserIds = []) {
+        if (!cuadernoUsuariosAsignadosContainer) return;
+        cuadernoUsuariosAsignadosContainer.innerHTML = ''; 
+        const operarios = usuarios.filter(u => u.rol === 'operario');
+
+        if (operarios.length === 0) {
+            cuadernoUsuariosAsignadosContainer.innerHTML = '<p class="text-sm text-slate-500">No hay usuarios operarios para asignar.</p>';
+            return;
+        }
+
+        operarios.forEach(op => {
+            const checkboxId = `user-assign-${op.uid}`;
+            const label = document.createElement('label');
+            label.htmlFor = checkboxId;
+            label.className = 'flex items-center space-x-2 p-1 hover:bg-slate-100 rounded cursor-pointer';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = checkboxId;
+            checkbox.value = op.uid;
+            checkbox.className = 'form-checkbox h-4 w-4 text-sky-600 border-slate-300 rounded focus:ring-sky-500';
+            if (selectedUserIds.includes(op.uid)) {
+                checkbox.checked = true;
+            }
+            
+            label.appendChild(checkbox);
+            label.appendChild(document.createTextNode(`${op.nombreCompleto} (${op.email})`));
+            cuadernoUsuariosAsignadosContainer.appendChild(label);
+        });
+    }
+
+    function popularSelectorColorCuaderno(claseColorSeleccionada = '') { 
+        if (!cuadernoColorSelect) return;
+        cuadernoColorSelect.innerHTML = ''; 
+        COLORES_CUADERNO.forEach(color => {
+            const option = document.createElement('option');
+            option.value = color.clase;
+            option.textContent = color.nombre;
+            if (color.clase === claseColorSeleccionada) {
+                option.selected = true;
+            }
+            cuadernoColorSelect.appendChild(option);
+        });
+    }
+
     async function toggleFormularioCuaderno(mostrar = true, firestoreDocId = null) { 
         if (mostrar) {
             editandoCuadernoFirestoreId = firestoreDocId; 
@@ -666,9 +698,9 @@ document.addEventListener('DOMContentLoaded', () => {
         tablaCuadernosBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center">Cargando cuadernos...</td></tr>';
         
         try {
-            // 'cuadernos' se carga en cargarDatosGlobales, que es llamado por onAuthStateChanged
-            // No es necesario volver a cargarlo aquí a menos que queramos un refresco específico.
-            // await cargarDatosGlobales(); // Opcional: forzar recarga.
+            if (cuadernos.length === 0 && currentUser) { 
+                 await cargarDatosGlobales(); 
+            }
 
             tablaCuadernosBody.innerHTML = ''; 
             if (cuadernos.length === 0) {
@@ -676,7 +708,6 @@ document.addEventListener('DOMContentLoaded', () => {
                  return;
             }
 
-            // Asegurar que 'usuarios' esté poblado para mostrar nombres asignados
             if (usuarios.length === 0 && currentUser && currentUser.rol === 'admin') {
                 const usuariosSnapshot = await db.collection(COLECCION_USUARIOS).get();
                 usuarios = usuariosSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
@@ -759,9 +790,7 @@ document.addEventListener('DOMContentLoaded', () => {
             emailsConPendientes, 
             usuariosAsignados: usuariosAsignadosSeleccionados
         };
-        // No es necesario eliminar las propiedades antiguas de email explícitamente 
-        // si no se incluyen en datosCuaderno al hacer set/update.
-
+        
         try {
             if (editandoCuadernoFirestoreId) { 
                 console.log("Actualizando cuaderno en Firestore:", editandoCuadernoFirestoreId, datosCuaderno);
@@ -837,7 +866,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         lineas.forEach(linea => {
             if (linea.startsWith('## ')) {
-                if (familiaActual && familiaActual.tareas.length > 0) { // Solo guardar si tiene tareas
+                if (familiaActual && familiaActual.tareas.length > 0) { 
                     familias.push(familiaActual);
                 }
                 familiaActual = {
@@ -849,16 +878,14 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (linea && !familiaActual) { 
                  if (familias.length === 0 || familias[familias.length-1].nombreFamilia !== "Tareas Generales") { 
                     familiaActual = { nombreFamilia: "Tareas Generales", tareas: [linea] };
-                    // No la añadimos a familias hasta que tenga tareas o cambie la familia
                  } else { 
                     familias[familias.length-1].tareas.push(linea);
                  }
             }
         });
-        if (familiaActual && familiaActual.tareas.length > 0) { // Guardar la última familia si tiene tareas
+        if (familiaActual && familiaActual.tareas.length > 0) { 
              familias.push(familiaActual);
         }
-        // Si solo hay tareas sin familia definida explícitamente, y familiaActual se creó como "Tareas Generales"
         if (familias.length === 0 && familiaActual && familiaActual.nombreFamilia === "Tareas Generales" && familiaActual.tareas.length > 0) {
             familias.push(familiaActual);
         }
