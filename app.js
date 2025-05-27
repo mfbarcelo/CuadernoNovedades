@@ -600,7 +600,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function popularSelectorColorCuaderno(claseColorSeleccionada = '') { // Nombre corregido
+    function popularSelectorColorCuaderno(claseColorSeleccionada = '') { 
         if (!cuadernoColorSelect) return;
         cuadernoColorSelect.innerHTML = ''; 
         COLORES_CUADERNO.forEach(color => {
@@ -644,7 +644,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cuadernoNombreInput.value = cuadernoParaEditar ? cuadernoParaEditar.nombre : '';
             cuadernoTipoSelect.value = cuadernoParaEditar ? cuadernoParaEditar.tipo : 'novedades'; 
             
-            popularSelectorColorCuaderno(cuadernoParaEditar ? cuadernoParaEditar.colorClase : COLORES_CUADERNO[0].clase); // Llamada corregida
+            popularSelectorColorCuaderno(cuadernoParaEditar ? cuadernoParaEditar.colorClase : COLORES_CUADERNO[0].clase);
 
 
             const esChecklist = cuadernoTipoSelect.value === 'checklist';
@@ -755,7 +755,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function parseTareasDefinicion(textoTareas) { // Corregido el nombre de la función
+    function parseTareasDefinicion(textoTareas) { 
         const lineas = textoTareas.split('\n').map(l => l.trim());
         const familias = [];
         let familiaActual = null;
@@ -799,7 +799,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const nombre = cuadernoNombreInput.value.trim();
         const tipo = cuadernoTipoSelect.value; 
         const tareasDefinicionRaw = cuadernoTareasDefinicionTextarea.value.trim(); 
-        const tareasDefinicion = tipo === 'checklist' ? parseTareasDefinicion(tareasDefinicionRaw) : []; // Llamada corregida
+        const tareasDefinicion = tipo === 'checklist' ? parseTareasDefinicion(tareasDefinicionRaw) : []; 
 
         const colorClase = cuadernoColorSelect.value; 
         const emailsTodoRealizado = cuadernoEmailsTodoRealizadoInput.value.trim();
@@ -1661,6 +1661,100 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Error renderizando historial de checklists:", error);
             historialChecklistsCuaderno.innerHTML = '<p class="text-red-500 p-4 text-center">Error al cargar historial.</p>';
         }
+    }
+    
+    function simularEnvioEmail(entrada, tipoEntrada = 'novedad') { 
+        const cuaderno = cuadernos.find(c => c.id === entrada.cuadernoId || c.firestoreDocId === entrada.cuadernoId); 
+        if (!cuaderno) {
+            console.error("Simular Email: Cuaderno no encontrado para la entrada:", entrada);
+             if (emailSimulacionModal) {
+                emailSimDestinatarios.textContent = "Error";
+                emailSimAsunto.textContent = "Error: Cuaderno no encontrado";
+                emailSimCuerpo.textContent = `No se pudo encontrar el cuaderno con ID: ${entrada.cuadernoId}`;
+                emailSimulacionModal.style.display = 'flex';
+            }
+            return;
+        }
+        let destinatarios = '';
+        if (entrada.calificacion === CALIFICACIONES_UNIFICADAS.TODO_REALIZADO) {
+            destinatarios = cuaderno.emailsTodoRealizado;
+        } else if (entrada.calificacion === CALIFICACIONES_UNIFICADAS.CON_TAREAS_PENDIENTES) {
+            destinatarios = cuaderno.emailsConPendientes;
+        }
+
+        if (!destinatarios) {
+            console.log(`Simulación Email: No hay destinatarios configurados para la calificación "${entrada.calificacion}" en el cuaderno "${cuaderno.nombre}".`);
+            if (emailSimulacionModal && emailSimDestinatarios && emailSimAsunto && emailSimCuerpo) { 
+                emailSimDestinatarios.textContent = "No configurados";
+                emailSimAsunto.textContent = `[SIN ENVÍO] ${tipoEntrada === 'checklist' ? 'Checklist Completado' : 'Novedad'} - ${cuaderno.nombre}`;
+                emailSimCuerpo.textContent = `La entrada fue guardada pero no hay destinatarios de email configurados para la calificación "${entrada.calificacion}".`;
+                emailSimulacionModal.style.display = 'flex';
+            }
+            return;
+        }
+
+        const asunto = `${tipoEntrada === 'checklist' ? 'Checklist Completado' : 'Novedad'} Cuaderno: ${cuaderno.nombre}, Fecha: ${entrada.fecha}, Turno: ${entrada.turno}`; 
+        let cuerpo = `CUADERNO: ${cuaderno.nombre}\n`;
+        cuerpo += `FECHA: ${entrada.fecha}\n`;
+        cuerpo += `TURNO: ${entrada.turno}\n`;
+        cuerpo += `HORA: ${entrada.hora}\n`;
+        cuerpo += `USUARIO: ${entrada.nombreUsuario}\n`;
+        cuerpo += `CALIFICACIÓN: ${entrada.calificacion}\n`;
+        cuerpo += `------------------------------------\n`;
+
+        if (tipoEntrada === 'novedad') {
+            cuerpo += `NOVEDAD:\n${entrada.texto}`;
+        } else if (tipoEntrada === 'checklist') {
+            cuerpo += `TAREAS DEL CHECKLIST (Solo Pendientes o En Proceso):\n\n`;
+            
+            const tareasAgrupadasEmail = (entrada.tareas || []).reduce((acc, tarea) => {
+                if (tarea.estado === 'Pendiente' || tarea.estado === 'En Proceso') { 
+                    const familia = tarea.familiaNombre || "Tareas Generales";
+                    if (!acc[familia]) {
+                        acc[familia] = [];
+                    }
+                    acc[familia].push(tarea);
+                }
+                return acc;
+            }, {});
+
+            let hayTareasParaReportar = false;
+            for (const nombreFamilia in tareasAgrupadasEmail) {
+                if (tareasAgrupadasEmail[nombreFamilia].length > 0) {
+                    hayTareasParaReportar = true;
+                    cuerpo += `FAMILIA: ${nombreFamilia}\n`;
+                    const anchoTarea = 40; 
+                    const anchoEstado = 15;
+                    
+                    tareasAgrupadasEmail[nombreFamilia].forEach(t => {
+                        let linea = `- ${t.texto.padEnd(anchoTarea).substring(0, anchoTarea)} `;
+                        linea += `${t.estado.padEnd(anchoEstado).substring(0, anchoEstado)} `;
+                        if (t.observacionTarea) {
+                            linea += `(${t.observacionTarea})`;
+                        }
+                        cuerpo += `${linea.trim()}\n`;
+                    });
+                    cuerpo += "\n"; 
+                }
+            }
+             if (!hayTareasParaReportar && entrada.calificacion === CALIFICACIONES_UNIFICADAS.CON_TAREAS_PENDIENTES) {
+                cuerpo += "(No se listaron tareas específicas como Pendientes o En Proceso, pero la calificación general indica pendientes)\n";
+            } else if (!hayTareasParaReportar && entrada.calificacion === CALIFICACIONES_UNIFICADAS.TODO_REALIZADO) {
+                cuerpo += "(Todas las tareas fueron realizadas o no corresponden)\n";
+            }
+
+
+            if (entrada.observaciones) { 
+                cuerpo += `\nOBSERVACIONES GENERALES:\n${entrada.observaciones}\n`;
+            }
+        }
+
+        if (emailSimulacionModal && emailSimDestinatarios && emailSimAsunto && emailSimCuerpo) {
+            emailSimDestinatarios.textContent = destinatarios;
+            emailSimAsunto.textContent = asunto;
+            emailSimCuerpo.textContent = cuerpo.trim();
+            emailSimulacionModal.style.display = 'flex';
+        } 
     }
 
 

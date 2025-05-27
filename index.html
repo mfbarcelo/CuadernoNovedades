@@ -11,26 +11,30 @@
         .hidden-view {
             display: none;
         }
+        
         body {
-            font-family: 'Inter', sans-serif; 
-            position: relative; 
-            z-index: 0; 
+            font-family: 'Inter', sans-serif; /* Fuente agradable */
+            position: relative; /* Necesario para el posicionamiento del pseudo-elemento */
+            z-index: 0; /* Asegurar que el contenido del body esté sobre el pseudo-elemento base */
         }
+
         body::before {
             content: "";
-            position: fixed; 
+            position: fixed; /* Cubre toda la ventana y se queda fijo */
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background-image: url('watermark-lab.png'); 
+            background-image: url('watermark-lab.png'); /* ¡CAMBIA ESTO POR EL NOMBRE DE TU IMAGEN! */
             background-repeat: no-repeat;
             background-position: center center;
-            background-size: contain; 
-            opacity: 0.05; 
-            z-index: -1; 
-            pointer-events: none; 
+            background-size: contain; /* 'contain' para asegurar que toda la imagen sea visible, ajusta según necesites ('cover', '50%', etc.) */
+            opacity: 0.05; /* Ajusta este valor para la intensidad de la marca de agua (0.0 a 1.0) */
+            z-index: -1; /* Para que esté detrás de todo el contenido */
+            pointer-events: none; /* Para que no interfiera con los clics */
         }
+
+        /* Estilo para selectores múltiples (si se usa) */
         .multi-select-container {
             height: 120px; 
             overflow-y: auto;
@@ -49,12 +53,17 @@
         .novedad-card { 
             border-left-width: 4px;
         }
-        .calificacion-Con-tareas-pendientes { border-left-color: #ef4444; }
-        .calificacion-Todo-realizado { border-left-color: #22c55e; }
+        /* Clases para borde de tarjeta y badges de calificación */
+        .calificacion-Con-tareas-pendientes { border-left-color: #ef4444; /* red-500 */ }
+        .calificacion-Todo-realizado { border-left-color: #22c55e; /* green-500 */ }
+        /* Fallback para calificaciones antiguas si aún existen en datos viejos, aunque la lógica las ignorará */
         .calificacion-Malo { border-left-color: #ef4444; }
         .calificacion-Regular { border-left-color: #f59e0b; }
         .calificacion-Bueno { border-left-color: #22c55e; }
         .calificacion-Muy-Bueno { border-left-color: #3b82f6; }
+
+
+        /* Estilos para la celda de calificación del supervisor */
         .calificacion-cell {
             width: 2rem; 
             height: 2rem; 
@@ -70,6 +79,7 @@
             text-align: center;
             font-weight: bold;
         }
+
     </style>
 
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
@@ -78,14 +88,15 @@
 
     <script>
       // TODO: Reemplaza esto con la configuración de Firebase de tu proyecto
+      // Pega aquí el objeto firebaseConfig que obtuviste de tu consola de Firebase
       const firebaseConfig = {
-        apiKey: "AIzaSyCdzp18gx4thlTzPpaWa_yi2NL3g9VC5Zg",
-        authDomain: "cuadernonovedades-63326.firebaseapp.com",
-        projectId: "cuadernonovedades-63326",
-        storageBucket: "cuadernonovedades-63326.firebasestorage.app",
-        messagingSenderId: "525819434924",
-        appId: "1:525819434924:web:c32d521bf901c2a4b84c09",
-        measurementId: "G-48T77EVJ8Q"
+        apiKey: "TU_API_KEY", // Reemplazar
+        authDomain: "TU_PROJECT_ID.firebaseapp.com", // Reemplazar
+        projectId: "TU_PROJECT_ID", // Reemplazar
+        storageBucket: "TU_PROJECT_ID.appspot.com", // Reemplazar
+        messagingSenderId: "TU_MESSAGING_SENDER_ID", // Reemplazar
+        appId: "TU_APP_ID", // Reemplazar
+        measurementId: "TU_MEASUREMENT_ID" // Opcional, pero si lo tienes, inclúyelo
       };
 
       // Inicializar Firebase
@@ -158,7 +169,8 @@
             <div id="formNuevoUsuarioContainer" class="hidden-view mb-6 p-6 bg-slate-50 rounded-lg shadow">
                 <h3 id="formUsuarioTitle" class="text-xl font-semibold text-sky-700 mb-4">Agregar Nuevo Usuario</h3>
                 <form id="formUsuario">
-                    <input type="hidden" id="usuarioIdToEdit"> <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input type="hidden" id="usuarioIdToEdit"> 
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label for="usuarioEmail" class="block text-sm font-medium text-slate-700 mb-1">Email del Usuario:</label>
                             <input type="email" id="usuarioEmail" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500">
