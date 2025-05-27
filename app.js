@@ -706,7 +706,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tablaCuadernosBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center">Cargando cuadernos...</td></tr>';
         
         try {
-            await cargarDatosGlobales(); // Asegurar que los cuadernos estén actualizados desde Firestore
+            await cargarDatosGlobales(); 
 
             tablaCuadernosBody.innerHTML = ''; 
             if (cuadernos.length === 0) {
@@ -755,7 +755,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function parseTareasDefinicion(textoTareas) { // Corregido el nombre de la función
+    function parseTareasDefinicion(textoTareas) {
         const lineas = textoTareas.split('\n').map(l => l.trim());
         const familias = [];
         let familiaActual = null;
@@ -789,6 +789,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return familias.filter(f => f.nombreFamilia && f.tareas.length > 0); 
     }
+
 
     async function handleGuardarCuaderno(event) { 
         event.preventDefault();
@@ -1545,7 +1546,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             await cargarDatosGlobales(); 
 
-            simularEnvioEmail(nuevaEntradaChecklist, 'checklist'); // Corregido el nombre de la función
+            simularEnvioEmail(nuevaEntradaChecklist, 'checklist'); // Nombre corregido
             
             if(checklistObservacionesTextarea) checklistObservacionesTextarea.value = ''; 
             if(checklistFormError) checklistFormError.textContent = '';
@@ -1577,7 +1578,6 @@ document.addEventListener('DOMContentLoaded', () => {
         historialChecklistsCuaderno.innerHTML = '<p class="text-slate-500 p-4 text-center">Cargando historial...</p>';
 
         try {
-            // 'checklistEntradas' ya está cargado globalmente
             const entradasDelCuaderno = checklistEntradas
                 .filter(ce => ce.cuadernoId === cuadernoIdManual)
                 .sort((a, b) => {
