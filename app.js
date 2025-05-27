@@ -706,10 +706,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tablaCuadernosBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center">Cargando cuadernos...</td></tr>';
         
         try {
-            // 'cuadernos' se carga en cargarDatosGlobales
-            if (cuadernos.length === 0 && currentUser) { 
-                 await cargarDatosGlobales(); 
-            }
+            await cargarDatosGlobales(); // Asegurar que los cuadernos estén actualizados desde Firestore
 
             tablaCuadernosBody.innerHTML = ''; 
             if (cuadernos.length === 0) {
@@ -756,6 +753,41 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Error renderizando tabla de cuadernos:", error);
             tablaCuadernosBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-red-500">Error al cargar cuadernos.</td></tr>';
         }
+    }
+
+    function parseTareasDefinicion(textoTareas) { // Corregido el nombre de la función
+        const lineas = textoTareas.split('\n').map(l => l.trim());
+        const familias = [];
+        let familiaActual = null;
+
+        lineas.forEach(linea => {
+            if (linea.startsWith('## ')) {
+                if (familiaActual && familiaActual.tareas.length > 0) { 
+                    familias.push(familiaActual);
+                }
+                familiaActual = {
+                    nombreFamilia: linea.substring(3).trim(), 
+                    tareas: []
+                };
+            } else if (linea && familiaActual) { 
+                familiaActual.tareas.push(linea);
+            } else if (linea && !familiaActual) { 
+                 if (familias.length === 0 || (familias.length > 0 && familias[familias.length-1].nombreFamilia !== "Tareas Generales")) { 
+                    familiaActual = { nombreFamilia: "Tareas Generales", tareas: [linea] };
+                 } else if (familias.length > 0 && familias[familias.length-1].nombreFamilia === "Tareas Generales") { 
+                    familias[familias.length-1].tareas.push(linea);
+                 } else { 
+                    familiaActual = { nombreFamilia: "Tareas Generales", tareas: [linea] };
+                 }
+            }
+        });
+        if (familiaActual && familiaActual.tareas.length > 0) { 
+             familias.push(familiaActual);
+        }
+        if (familias.length === 0 && familiaActual && familiaActual.nombreFamilia === "Tareas Generales" && familiaActual.tareas.length > 0) {
+            familias.push(familiaActual);
+        }
+        return familias.filter(f => f.nombreFamilia && f.tareas.length > 0); 
     }
 
     async function handleGuardarCuaderno(event) { 
@@ -1082,7 +1114,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if(supervisorGestionWelcomeMessage) supervisorGestionWelcomeMessage.textContent = `Bienvenido, ${currentUser.nombreCompleto}. Selecciona un cuaderno para gestionar sus novedades:`;
         supervisorGestionCuadernosContainer.innerHTML = ''; 
 
-        // 'cuadernos' ya debería estar cargado desde cargarDatosGlobales
         if (cuadernos.length === 0) { 
             supervisorGestionCuadernosContainer.innerHTML = '<p class="text-slate-600">No hay cuadernos configurados en el sistema.</p>';
             return;
@@ -1159,7 +1190,6 @@ document.addEventListener('DOMContentLoaded', () => {
         let cuadernosConNovedadesHoy = 0;
         let totalNovedadesHoy = 0; 
 
-        // Asegurar que cuadernos, novedades y checklistEntradas estén cargados
         if (cuadernos.length === 0 || (novedades.length === 0 && checklistEntradas.length === 0 && currentUser)) { 
             await cargarDatosGlobales();
         }
@@ -1515,7 +1545,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             await cargarDatosGlobales(); 
 
-            simularEnvioEmail(nuevaEntradaChecklist, 'checklist');
+            simularEnvioEmail(nuevaEntradaChecklist, 'checklist'); // Corregido el nombre de la función
             
             if(checklistObservacionesTextarea) checklistObservacionesTextarea.value = ''; 
             if(checklistFormError) checklistFormError.textContent = '';
