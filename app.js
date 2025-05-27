@@ -187,11 +187,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 cuadernos = snapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
             }
 
-            const novedadesSnapshot = await db.collection(COLECCION_NOVEDADES).orderBy("fecha", "desc").get();
+            // Modificado para ordenar por timestamp
+            const novedadesSnapshot = await db.collection(COLECCION_NOVEDADES).orderBy("timestamp", "desc").get();
             novedades = novedadesSnapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
             console.log("Novedades cargadas:", novedades.length);
 
-            const checklistsSnapshot = await db.collection(COLECCION_CHECKLISTS).orderBy("fecha", "desc").get();
+            // Modificado para ordenar por timestamp
+            const checklistsSnapshot = await db.collection(COLECCION_CHECKLISTS).orderBy("timestamp", "desc").get();
             checklistEntradas = checklistsSnapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
             console.log("Checklists cargados:", checklistEntradas.length);
             
@@ -200,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error("Error cargando datos globales desde Firestore: ", error);
              if (error.code === 'failed-precondition') {
-                alert("Error de Firestore: La consulta para novedades o checklists requiere un índice compuesto (fecha desc). Por favor, crea los índices en la consola de Firebase como se indica en los logs del navegador (el enlace que te da Firebase), o contacta al desarrollador para simplificar la consulta. Para la demo, la ordenación por hora ha sido eliminada temporalmente para evitar este error con los datos semilla.");
+                alert("Error de Firestore: La consulta para novedades o checklists requiere un índice (ej: timestamp desc). Por favor, crea el índice en la consola de Firebase como se indica en los logs del navegador (el enlace que te da Firebase), o contacta al desarrollador.");
             }
         }
     }
@@ -998,12 +1000,15 @@ document.addEventListener('DOMContentLoaded', () => {
         listaNovedadesCuadernoOperario.innerHTML = '<p class="text-slate-500 p-4 text-center">Cargando novedades...</p>';
 
         try {
+            // novedades ya está ordenado globalmente por timestamp desc desde cargarDatosGlobales
+            // Filtramos y luego, si es necesario, re-ordenamos el subconjunto (aunque debería mantener el orden)
             const novedadesDelCuaderno = novedades
                 .filter(n => n.cuadernoId === cuadernoIdManual)
                 .sort((a, b) => { 
-                    const dateA = new Date(a.fecha.split('/').reverse().join('-') + 'T' + a.hora);
-                    const dateB = new Date(b.fecha.split('/').reverse().join('-') + 'T' + b.hora);
-                    return dateB - dateA;
+                    // Ordenar por timestamp descendente. Usar una fecha muy antigua para datos sin timestamp.
+                    const timestampA = a.timestamp ? a.timestamp.toDate().getTime() : 0;
+                    const timestampB = b.timestamp ? b.timestamp.toDate().getTime() : 0;
+                    return timestampB - timestampA;
                 });
             
             listaNovedadesCuadernoOperario.innerHTML = '';
@@ -1074,7 +1079,8 @@ document.addEventListener('DOMContentLoaded', () => {
             hora: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }), 
             turno: turno,
             texto: texto,
-            calificacion: calificacion 
+            calificacion: calificacion,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp() // Añadido timestamp del servidor
         };
 
         try {
@@ -1094,6 +1100,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (document.getElementById(VISTAS.SUPERVISOR_DASHBOARD) && !document.getElementById(VISTAS.SUPERVISOR_DASHBOARD).classList.contains('hidden-view')) {
                 const fechaPickerFormateada = supervisorDatePicker.value.split('-').reverse().join('/'); 
+                // La fecha y hora de la nuevaNovedad aún se usan para la comparación del supervisorDatePicker
                 if (nuevaNovedad.fecha === fechaPickerFormateada) { 
                      await renderizarDashboardSupervisor();
                 }
@@ -1152,6 +1159,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (calificacion === CALIFICACIONES_UNIFICADAS.TODO_REALIZADO) return baseClass + 'bg-green-500 text-white';
         if (calificacion === CALIFICACIONES_UNIFICADAS.CON_TAREAS_PENDIENTES) return baseClass + 'bg-red-500 text-white';
         
+        // Calificaciones antiguas (deberían ser reemplazadas por las unificadas)
         switch (calificacion) {
             case 'Malo': return baseClass + 'bg-red-500 text-white'; 
             case 'Regular': return baseClass + 'bg-yellow-400 text-black'; 
@@ -1192,7 +1200,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let totalNovedadesHoy = 0; 
 
         if (cuadernos.length === 0 || (novedades.length === 0 && checklistEntradas.length === 0 && currentUser)) { 
-            await cargarDatosGlobales();
+            await cargarDatosGlobales(); // Asegura que novedades y checklistEntradas estén ordenados por timestamp
         }
 
 
@@ -1212,13 +1220,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (cuaderno.tipo === 'checklist') {
                     entradasDelTurno = checklistEntradas.filter(ce => 
                         ce.cuadernoId === cuaderno.id && 
-                        ce.fecha === fechaFormateadaParaComparar &&
+                        ce.fecha === fechaFormateadaParaComparar && // Sigue usando fecha para el filtro del día
                         ce.turno === turno
                     );
                 } else { 
                     entradasDelTurno = novedades.filter(n => 
                         n.cuadernoId === cuaderno.id && 
-                        n.fecha === fechaFormateadaParaComparar &&
+                        n.fecha === fechaFormateadaParaComparar && // Sigue usando fecha para el filtro del día
                         n.turno === turno
                     );
                 }
@@ -1226,7 +1234,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (entradasDelTurno.length > 0) {
                     tieneEntradaEsteCuadernoHoy = true;
                     totalNovedadesHoy += entradasDelTurno.length; 
-                    ultimaEntradaDelTurno = entradasDelTurno.sort((a,b) => new Date('1970/01/01 ' + b.hora) - new Date('1970/01/01 ' + a.hora))[0];
+                    // Ordenar por timestamp para obtener la última entrada del turno
+                    ultimaEntradaDelTurno = entradasDelTurno.sort((a,b) => {
+                        const timestampA = a.timestamp ? a.timestamp.toDate().getTime() : 0;
+                        const timestampB = b.timestamp ? b.timestamp.toDate().getTime() : 0;
+                        return timestampB - timestampA; // Descendente
+                    })[0];
                     calificacionParaMostrar = ultimaEntradaDelTurno.calificacion;
                 }
                 
@@ -1281,23 +1294,27 @@ document.addEventListener('DOMContentLoaded', () => {
         let entradasDelDia = [];
         if (tipoCuaderno === 'checklist') {
             entradasDelDia = checklistEntradas
-                .filter(n => n.cuadernoId === cuadernoIdManual && n.fecha === fecha)
+                .filter(n => n.cuadernoId === cuadernoIdManual && n.fecha === fecha) // Filtro por fecha sigue siendo relevante aquí
                 .sort((a, b) => { 
                     const turnoAIndex = TURNOS_LAB.indexOf(a.turno);
                     const turnoBIndex = TURNOS_LAB.indexOf(b.turno);
                     if (turnoAIndex !== turnoBIndex) return turnoAIndex - turnoBIndex;
-                    return new Date('1970/01/01 ' + a.hora) - new Date('1970/01/01 ' + b.hora); 
+                    // Ordenar por timestamp ascendente dentro del mismo turno
+                    const timestampA = a.timestamp ? a.timestamp.toDate().getTime() : 0;
+                    const timestampB = b.timestamp ? b.timestamp.toDate().getTime() : 0;
+                    return timestampA - timestampB; 
                 });
         } else { 
             entradasDelDia = novedades
-                .filter(n => n.cuadernoId === cuadernoIdManual && n.fecha === fecha)
+                .filter(n => n.cuadernoId === cuadernoIdManual && n.fecha === fecha) // Filtro por fecha
                 .sort((a, b) => { 
                     const turnoAIndex = TURNOS_LAB.indexOf(a.turno);
                     const turnoBIndex = TURNOS_LAB.indexOf(b.turno);
                     if (turnoAIndex !== turnoBIndex) return turnoAIndex - turnoBIndex;
-                    const horaA = parseInt(a.hora.split(':')[0]) * 60 + parseInt(a.hora.split(':')[1]);
-                    const horaB = parseInt(b.hora.split(':')[0]) * 60 + parseInt(b.hora.split(':')[1]);
-                    return horaA - horaB; 
+                    // Ordenar por timestamp ascendente dentro del mismo turno
+                    const timestampA = a.timestamp ? a.timestamp.toDate().getTime() : 0;
+                    const timestampB = b.timestamp ? b.timestamp.toDate().getTime() : 0;
+                    return timestampA - timestampB; 
                 });
         }
 
@@ -1537,7 +1554,8 @@ document.addEventListener('DOMContentLoaded', () => {
             turno: turno,
             calificacion: calificacion,
             tareas: tareasCompletadas,
-            observaciones: observacionesGlobales 
+            observaciones: observacionesGlobales,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp() // Añadido timestamp del servidor
         };
 
         try {
@@ -1546,7 +1564,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             await cargarDatosGlobales(); 
 
-            simularEnvioEmail(nuevaEntradaChecklist, 'checklist'); // Nombre corregido
+            simularEnvioEmail(nuevaEntradaChecklist, 'checklist'); 
             
             if(checklistObservacionesTextarea) checklistObservacionesTextarea.value = ''; 
             if(checklistFormError) checklistFormError.textContent = '';
@@ -1563,7 +1581,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (document.getElementById(VISTAS.SUPERVISOR_DASHBOARD) && !document.getElementById(VISTAS.SUPERVISOR_DASHBOARD).classList.contains('hidden-view')) {
                 const fechaPickerFormateada = supervisorDatePicker.value.split('-').reverse().join('/');
-                if (nuevaEntradaChecklist.fecha === fechaPickerFormateada) {
+                if (nuevaEntradaChecklist.fecha === fechaPickerFormateada) { // Comparación con fecha del picker
                     await renderizarDashboardSupervisor();
                 }
             }
@@ -1573,17 +1591,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function renderizarHistorialChecklists(cuadernoIdManual) { // Recibe ID manual
+    async function renderizarHistorialChecklists(cuadernoIdManual) { 
         if (!historialChecklistsCuaderno) return;
         historialChecklistsCuaderno.innerHTML = '<p class="text-slate-500 p-4 text-center">Cargando historial...</p>';
 
         try {
+            // checklistEntradas ya está ordenado globalmente por timestamp desc desde cargarDatosGlobales
             const entradasDelCuaderno = checklistEntradas
                 .filter(ce => ce.cuadernoId === cuadernoIdManual)
                 .sort((a, b) => {
-                    const dateA = new Date(a.fecha.split('/').reverse().join('-') + 'T' + a.hora);
-                    const dateB = new Date(b.fecha.split('/').reverse().join('-') + 'T' + b.hora);
-                    return dateB - dateA; 
+                    // Ordenar por timestamp descendente. Usar una fecha muy antigua para datos sin timestamp.
+                    const timestampA = a.timestamp ? a.timestamp.toDate().getTime() : 0;
+                    const timestampB = b.timestamp ? b.timestamp.toDate().getTime() : 0;
+                    return timestampB - timestampA; 
                 });
 
             historialChecklistsCuaderno.innerHTML = '';
@@ -1758,7 +1778,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    // --- INICIALIZACIÓN Y EVENT no lo se LISTENERS ---
+    // --- INICIALIZACIÓN Y EVENT LISTENERS ---
     if (loginForm) loginForm.addEventListener('submit', handleLogin);
     if (logoutButton) logoutButton.addEventListener('click', handleLogout);
 
