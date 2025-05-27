@@ -1,12 +1,8 @@
 // app.js - Lógica para el Cuaderno de Novedades del Laboratorio
 // Versión con Firebase (Autenticación y Firestore)
-// BASADO EN EL ARCHIVO PROPORCIONADO POR EL USUARIO, CON MEJORA DE TIMESTAMP
 
 document.addEventListener('DOMContentLoaded', () => {
     // Firebase services ya están inicializados en index.html y disponibles como 'auth' y 'db'
-    // Asegurarse de que auth y db estén disponibles globalmente si se definieron en window en index.html
-    const auth = window.auth;
-    const db = window.db;
 
     // --- SELECTORES DEL DOM ---
     const loginView = document.getElementById('loginView');
@@ -191,12 +187,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 cuadernos = snapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
             }
 
-            // Ordenar por timestamp descendente (más reciente primero)
-            const novedadesSnapshot = await db.collection(COLECCION_NOVEDADES).orderBy("timestamp", "desc").get();
+            const novedadesSnapshot = await db.collection(COLECCION_NOVEDADES).orderBy("fecha", "desc").get();
             novedades = novedadesSnapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
             console.log("Novedades cargadas:", novedades.length);
 
-            const checklistsSnapshot = await db.collection(COLECCION_CHECKLISTS).orderBy("timestamp", "desc").get();
+            const checklistsSnapshot = await db.collection(COLECCION_CHECKLISTS).orderBy("fecha", "desc").get();
             checklistEntradas = checklistsSnapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
             console.log("Checklists cargados:", checklistEntradas.length);
             
@@ -204,8 +199,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error("Error cargando datos globales desde Firestore: ", error);
-             if (error.code === 'failed-precondition') { 
-                alert("Error de Firestore: La consulta para novedades o checklists requiere un índice compuesto (timestamp desc). Por favor, crea los índices en la consola de Firebase como se indica en los logs del navegador (el enlace que te da Firebase), o contacta al desarrollador para simplificar la consulta.");
+             if (error.code === 'failed-precondition') {
+                alert("Error de Firestore: La consulta para novedades o checklists requiere un índice compuesto (fecha desc). Por favor, crea los índices en la consola de Firebase como se indica en los logs del navegador (el enlace que te da Firebase), o contacta al desarrollador para simplificar la consulta. Para la demo, la ordenación por hora ha sido eliminada temporalmente para evitar este error con los datos semilla.");
             }
         }
     }
@@ -618,44 +613,6 @@ document.addEventListener('DOMContentLoaded', () => {
             cuadernoColorSelect.appendChild(option);
         });
     }
-    
-    function parseTareasDefinicion(textoTareas) { 
-        const lineas = textoTareas.split('\n').map(l => l.trim());
-        const familias = [];
-        let familiaActual = null;
-
-        lineas.forEach(linea => {
-            if (linea.startsWith('## ')) {
-                if (familiaActual && familiaActual.tareas.length > 0) { 
-                    familias.push(familiaActual);
-                }
-                familiaActual = {
-                    nombreFamilia: linea.substring(3).trim(), 
-                    tareas: []
-                };
-            } else if (linea && familiaActual) { 
-                familiaActual.tareas.push(linea);
-            } else if (linea && !familiaActual) { 
-                 if (familias.length === 0 || (familias.length > 0 && familias[familias.length-1].nombreFamilia !== "Tareas Generales")) { 
-                    familiaActual = { nombreFamilia: "Tareas Generales", tareas: [linea] };
-                 } else if (familias.length > 0 && familias[familias.length-1].nombreFamilia === "Tareas Generales") { 
-                    familias[familias.length-1].tareas.push(linea);
-                 } else { 
-                    familiaActual = { nombreFamilia: "Tareas Generales", tareas: [linea] };
-                 }
-            }
-        });
-        if (familiaActual && familiaActual.tareas.length > 0) { 
-            if (!familias.some(f => f.nombreFamilia === familiaActual.nombreFamilia && JSON.stringify(f.tareas) === JSON.stringify(familiaActual.tareas) )) {
-                 familias.push(familiaActual);
-            }
-        }
-        if (familias.length === 0 && familiaActual && familiaActual.nombreFamilia === "Tareas Generales" && familiaActual.tareas.length > 0) {
-            familias.push(familiaActual);
-        }
-        return familias.filter(f => f.nombreFamilia && f.tareas.length > 0); 
-    }
-
 
     async function toggleFormularioCuaderno(mostrar = true, firestoreDocId = null) { 
         if (mostrar) {
@@ -797,6 +754,42 @@ document.addEventListener('DOMContentLoaded', () => {
             tablaCuadernosBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-red-500">Error al cargar cuadernos.</td></tr>';
         }
     }
+
+    function parseTareasDefinicion(textoTareas) { 
+        const lineas = textoTareas.split('\n').map(l => l.trim());
+        const familias = [];
+        let familiaActual = null;
+
+        lineas.forEach(linea => {
+            if (linea.startsWith('## ')) {
+                if (familiaActual && familiaActual.tareas.length > 0) { 
+                    familias.push(familiaActual);
+                }
+                familiaActual = {
+                    nombreFamilia: linea.substring(3).trim(), 
+                    tareas: []
+                };
+            } else if (linea && familiaActual) { 
+                familiaActual.tareas.push(linea);
+            } else if (linea && !familiaActual) { 
+                 if (familias.length === 0 || (familias.length > 0 && familias[familias.length-1].nombreFamilia !== "Tareas Generales")) { 
+                    familiaActual = { nombreFamilia: "Tareas Generales", tareas: [linea] };
+                 } else if (familias.length > 0 && familias[familias.length-1].nombreFamilia === "Tareas Generales") { 
+                    familias[familias.length-1].tareas.push(linea);
+                 } else { 
+                    familiaActual = { nombreFamilia: "Tareas Generales", tareas: [linea] };
+                 }
+            }
+        });
+        if (familiaActual && familiaActual.tareas.length > 0) { 
+             familias.push(familiaActual);
+        }
+        if (familias.length === 0 && familiaActual && familiaActual.nombreFamilia === "Tareas Generales" && familiaActual.tareas.length > 0) {
+            familias.push(familiaActual);
+        }
+        return familias.filter(f => f.nombreFamilia && f.tareas.length > 0); 
+    }
+
 
     async function handleGuardarCuaderno(event) { 
         event.preventDefault();
@@ -1005,8 +998,13 @@ document.addEventListener('DOMContentLoaded', () => {
         listaNovedadesCuadernoOperario.innerHTML = '<p class="text-slate-500 p-4 text-center">Cargando novedades...</p>';
 
         try {
-            // 'novedades' ya está cargado globalmente y ordenado por timestamp
-            const novedadesDelCuaderno = novedades.filter(n => n.cuadernoId === cuadernoIdManual);
+            const novedadesDelCuaderno = novedades
+                .filter(n => n.cuadernoId === cuadernoIdManual)
+                .sort((a, b) => { 
+                    const dateA = new Date(a.fecha.split('/').reverse().join('-') + 'T' + a.hora);
+                    const dateB = new Date(b.fecha.split('/').reverse().join('-') + 'T' + b.hora);
+                    return dateB - dateA;
+                });
             
             listaNovedadesCuadernoOperario.innerHTML = '';
             if (novedadesDelCuaderno.length === 0) {
@@ -1074,7 +1072,6 @@ document.addEventListener('DOMContentLoaded', () => {
             nombreUsuario: currentUser.nombreCompleto,
             fecha: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }), 
             hora: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }), 
-            timestamp: firebase.firestore.FieldValue.serverTimestamp(), // Añadido timestamp
             turno: turno,
             texto: texto,
             calificacion: calificacion 
@@ -1229,14 +1226,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (entradasDelTurno.length > 0) {
                     tieneEntradaEsteCuadernoHoy = true;
                     totalNovedadesHoy += entradasDelTurno.length; 
-                    // Ordenar por timestamp si existe, sino por hora
-                    entradasDelTurno.sort((a,b) => {
-                        if (a.timestamp && b.timestamp) {
-                            return b.timestamp.toMillis() - a.timestamp.toMillis();
-                        }
-                        return new Date('1970/01/01 ' + b.hora) - new Date('1970/01/01 ' + a.hora);
-                    });
-                    ultimaEntradaDelTurno = entradasDelTurno[0];
+                    ultimaEntradaDelTurno = entradasDelTurno.sort((a,b) => new Date('1970/01/01 ' + b.hora) - new Date('1970/01/01 ' + a.hora))[0];
                     calificacionParaMostrar = ultimaEntradaDelTurno.calificacion;
                 }
                 
@@ -1290,11 +1280,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let entradasDelDia = [];
         if (tipoCuaderno === 'checklist') {
-            entradasDelDia = checklistEntradas.filter(n => n.cuadernoId === cuadernoIdManual && n.fecha === fecha);
-            // El sort por timestamp ya se hace en cargarDatosGlobales
+            entradasDelDia = checklistEntradas
+                .filter(n => n.cuadernoId === cuadernoIdManual && n.fecha === fecha)
+                .sort((a, b) => { 
+                    const turnoAIndex = TURNOS_LAB.indexOf(a.turno);
+                    const turnoBIndex = TURNOS_LAB.indexOf(b.turno);
+                    if (turnoAIndex !== turnoBIndex) return turnoAIndex - turnoBIndex;
+                    return new Date('1970/01/01 ' + a.hora) - new Date('1970/01/01 ' + b.hora); 
+                });
         } else { 
-            entradasDelDia = novedades.filter(n => n.cuadernoId === cuadernoIdManual && n.fecha === fecha);
-            // El sort por timestamp ya se hace en cargarDatosGlobales
+            entradasDelDia = novedades
+                .filter(n => n.cuadernoId === cuadernoIdManual && n.fecha === fecha)
+                .sort((a, b) => { 
+                    const turnoAIndex = TURNOS_LAB.indexOf(a.turno);
+                    const turnoBIndex = TURNOS_LAB.indexOf(b.turno);
+                    if (turnoAIndex !== turnoBIndex) return turnoAIndex - turnoBIndex;
+                    const horaA = parseInt(a.hora.split(':')[0]) * 60 + parseInt(a.hora.split(':')[1]);
+                    const horaB = parseInt(b.hora.split(':')[0]) * 60 + parseInt(b.hora.split(':')[1]);
+                    return horaA - horaB; 
+                });
         }
 
 
@@ -1530,7 +1534,6 @@ document.addEventListener('DOMContentLoaded', () => {
             nombreUsuario: currentUser.nombreCompleto,
             fecha: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }),
             hora: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-            timestamp: firebase.firestore.FieldValue.serverTimestamp(), // Añadido timestamp
             turno: turno,
             calificacion: calificacion,
             tareas: tareasCompletadas,
@@ -1543,7 +1546,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             await cargarDatosGlobales(); 
 
-            simularEnvioEmail(nuevaEntradaChecklist, 'checklist'); 
+            simularEnvioEmail(nuevaEntradaChecklist, 'checklist'); // Nombre corregido
             
             if(checklistObservacionesTextarea) checklistObservacionesTextarea.value = ''; 
             if(checklistFormError) checklistFormError.textContent = '';
@@ -1570,14 +1573,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function renderizarHistorialChecklists(cuadernoIdManual) { 
+    async function renderizarHistorialChecklists(cuadernoIdManual) { // Recibe ID manual
         if (!historialChecklistsCuaderno) return;
         historialChecklistsCuaderno.innerHTML = '<p class="text-slate-500 p-4 text-center">Cargando historial...</p>';
 
         try {
-            // 'checklistEntradas' ya está cargado globalmente y ordenado por timestamp
-            const entradasDelCuaderno = checklistEntradas.filter(ce => ce.cuadernoId === cuadernoIdManual);
-            
+            const entradasDelCuaderno = checklistEntradas
+                .filter(ce => ce.cuadernoId === cuadernoIdManual)
+                .sort((a, b) => {
+                    const dateA = new Date(a.fecha.split('/').reverse().join('-') + 'T' + a.hora);
+                    const dateB = new Date(b.fecha.split('/').reverse().join('-') + 'T' + b.hora);
+                    return dateB - dateA; 
+                });
+
             historialChecklistsCuaderno.innerHTML = '';
             if (entradasDelCuaderno.length === 0) {
                 historialChecklistsCuaderno.innerHTML = '<p class="text-slate-500 p-4 text-center">No hay checklists guardados para este cuaderno.</p>';
@@ -1750,7 +1758,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    // --- INICIALIZACIÓN Y EVENT LISTENERS ---
+    // --- INICIALIZACIÓN Y EVENT no lo se LISTENERS ---
     if (loginForm) loginForm.addEventListener('submit', handleLogin);
     if (logoutButton) logoutButton.addEventListener('click', handleLogout);
 
