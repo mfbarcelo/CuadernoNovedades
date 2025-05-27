@@ -600,7 +600,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function popularSelectorColorCuaderno(claseColorSeleccionada = '') { 
+    function popularSelectorColorCuaderno(claseColorSeleccionada = '') { // Nombre corregido
         if (!cuadernoColorSelect) return;
         cuadernoColorSelect.innerHTML = ''; 
         COLORES_CUADERNO.forEach(color => {
@@ -644,7 +644,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cuadernoNombreInput.value = cuadernoParaEditar ? cuadernoParaEditar.nombre : '';
             cuadernoTipoSelect.value = cuadernoParaEditar ? cuadernoParaEditar.tipo : 'novedades'; 
             
-            popularSelectorColorCuaderno(cuadernoParaEditar ? cuadernoParaEditar.colorClase : COLORES_CUADERNO[0].clase);
+            popularSelectorColorCuaderno(cuadernoParaEditar ? cuadernoParaEditar.colorClase : COLORES_CUADERNO[0].clase); // Llamada corregida
 
 
             const esChecklist = cuadernoTipoSelect.value === 'checklist';
@@ -755,7 +755,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function parseTareasDefinicion(textoTareas) {
+    function parseTareasDefinicion(textoTareas) { // Corregido el nombre de la función
         const lineas = textoTareas.split('\n').map(l => l.trim());
         const familias = [];
         let familiaActual = null;
@@ -799,7 +799,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const nombre = cuadernoNombreInput.value.trim();
         const tipo = cuadernoTipoSelect.value; 
         const tareasDefinicionRaw = cuadernoTareasDefinicionTextarea.value.trim(); 
-        const tareasDefinicion = tipo === 'checklist' ? parseTareasDefinicion(tareasDefinicionRaw) : []; 
+        const tareasDefinicion = tipo === 'checklist' ? parseTareasDefinicion(tareasDefinicionRaw) : []; // Llamada corregida
 
         const colorClase = cuadernoColorSelect.value; 
         const emailsTodoRealizado = cuadernoEmailsTodoRealizadoInput.value.trim();
