@@ -1,6 +1,6 @@
 // app.js - Lógica para el Cuaderno de Novedades del Laboratorio
 // Versión con Firebase (Autenticación y Firestore)
-// BASADO EN EL ARCHIVO PROPORCIONADO POR EL USUARIO, CON CORRECCIONES Y TIMESTAMP
+// BASADO EN EL ARCHIVO PROPORCIONADO POR EL USUARIO, CON MEJORA DE TIMESTAMP
 
 document.addEventListener('DOMContentLoaded', () => {
     // Firebase services ya están inicializados en index.html y disponibles como 'auth' y 'db'
@@ -191,11 +191,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 cuadernos = snapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
             }
 
-            const novedadesSnapshot = await db.collection(COLECCION_NOVEDADES).orderBy("timestamp", "desc").get(); // Ordenar por timestamp
+            // Ordenar por timestamp descendente (más reciente primero)
+            const novedadesSnapshot = await db.collection(COLECCION_NOVEDADES).orderBy("timestamp", "desc").get();
             novedades = novedadesSnapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
             console.log("Novedades cargadas:", novedades.length);
 
-            const checklistsSnapshot = await db.collection(COLECCION_CHECKLISTS).orderBy("timestamp", "desc").get(); // Ordenar por timestamp
+            const checklistsSnapshot = await db.collection(COLECCION_CHECKLISTS).orderBy("timestamp", "desc").get();
             checklistEntradas = checklistsSnapshot.docs.map(doc => ({ firestoreDocId: doc.id, ...doc.data() }));
             console.log("Checklists cargados:", checklistEntradas.length);
             
@@ -1004,9 +1005,8 @@ document.addEventListener('DOMContentLoaded', () => {
         listaNovedadesCuadernoOperario.innerHTML = '<p class="text-slate-500 p-4 text-center">Cargando novedades...</p>';
 
         try {
-            const novedadesDelCuaderno = novedades
-                .filter(n => n.cuadernoId === cuadernoIdManual)
-                // El sort por timestamp ya se hace en cargarDatosGlobales
+            // 'novedades' ya está cargado globalmente y ordenado por timestamp
+            const novedadesDelCuaderno = novedades.filter(n => n.cuadernoId === cuadernoIdManual);
             
             listaNovedadesCuadernoOperario.innerHTML = '';
             if (novedadesDelCuaderno.length === 0) {
@@ -1290,13 +1290,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let entradasDelDia = [];
         if (tipoCuaderno === 'checklist') {
-            entradasDelDia = checklistEntradas
-                .filter(n => n.cuadernoId === cuadernoIdManual && n.fecha === fecha)
-                // El sort por timestamp ya se hace en cargarDatosGlobales
+            entradasDelDia = checklistEntradas.filter(n => n.cuadernoId === cuadernoIdManual && n.fecha === fecha);
+            // El sort por timestamp ya se hace en cargarDatosGlobales
         } else { 
-            entradasDelDia = novedades
-                .filter(n => n.cuadernoId === cuadernoIdManual && n.fecha === fecha)
-                // El sort por timestamp ya se hace en cargarDatosGlobales
+            entradasDelDia = novedades.filter(n => n.cuadernoId === cuadernoIdManual && n.fecha === fecha);
+            // El sort por timestamp ya se hace en cargarDatosGlobales
         }
 
 
@@ -1577,9 +1575,8 @@ document.addEventListener('DOMContentLoaded', () => {
         historialChecklistsCuaderno.innerHTML = '<p class="text-slate-500 p-4 text-center">Cargando historial...</p>';
 
         try {
-            const entradasDelCuaderno = checklistEntradas
-                .filter(ce => ce.cuadernoId === cuadernoIdManual)
-                // El sort por timestamp ya se hace en cargarDatosGlobales
+            // 'checklistEntradas' ya está cargado globalmente y ordenado por timestamp
+            const entradasDelCuaderno = checklistEntradas.filter(ce => ce.cuadernoId === cuadernoIdManual);
             
             historialChecklistsCuaderno.innerHTML = '';
             if (entradasDelCuaderno.length === 0) {
