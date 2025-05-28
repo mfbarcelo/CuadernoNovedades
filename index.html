@@ -83,8 +83,11 @@
     </style>
 
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-analytics-compat.js"></script>
 
     <script>
       // TODO: Reemplaza esto con la configuración de Firebase de tu proyecto
@@ -96,11 +99,16 @@
         storageBucket: "cuadernonovedades-63326.firebasestorage.app", // Reemplazar
         messagingSenderId: "525819434924", // Reemplazar
         appId: "1:525819434924:web:c32d521bf901c2a4b84c09", // Reemplazar
-        measurementId: "G-48T77EVJ8Q" // Opcional, pero si lo tienes, inclúyelo
+        measurementId: "G-48T77EVJ8Q" // Este ID es para Google Analytics
       };
 
       // Inicializar Firebase
       firebase.initializeApp(firebaseConfig);
+      
+      // Inicializar Firebase Analytics (opcionalmente, puedes asignar a una variable si necesitas usarla directamente)
+      // Si solo necesitas que envíe datos automáticamente, con inicializar la app y tener el SDK + measurementId es suficiente.
+      firebase.analytics(); 
+
       const auth = firebase.auth();
       const db = firebase.firestore();
     </script>
@@ -505,6 +513,7 @@
         </div>
 
 
-    </div> <script src="app.js"></script>
+    </div> 
+    <script src="app.js"></script>
 </body>
 </html>
